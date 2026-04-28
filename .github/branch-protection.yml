@@ -1,0 +1,53 @@
+# Configuración de protección de rama para `main`
+# =====================================================
+# Este archivo documenta las reglas de protección de rama
+# que deben estar activas en GitHub para el repositorio.
+#
+# CÓMO APLICAR
+# ------------
+# 1. Ir a Settings → Branches → Branch protection rules → Add rule
+#    (o editar la regla existente si ya existe para `main`)
+# 2. Configurar las opciones indicadas a continuación.
+# 3. Hacer clic en "Save changes".
+#
+# Para aplicarlo vía API (requiere PAT con scope `repo`):
+#   curl -X PUT https://api.github.com/repos/lpzzlnrd/Reino-Aromas/branches/main/protection \
+#     -H "Authorization: token <TU_TOKEN>" \
+#     -H "Accept: application/vnd.github+json" \
+#     -d @.github/branch-protection-payload.json
+
+branch_protection_rules:
+  - pattern: main
+
+    # --- Pull Requests ---
+    # Requiere que todos los cambios lleguen a través de un Pull Request
+    require_pull_request_before_merging: true
+    required_approving_review_count: 1       # Mínimo 1 aprobación
+    dismiss_stale_reviews: true              # Invalida aprobaciones cuando se hace nuevo push
+    require_code_owner_reviews: false        # Activar si hay un archivo CODEOWNERS
+
+    # --- Conversaciones ---
+    # Todas las conversaciones abiertas deben resolverse antes de mergear
+    require_conversation_resolution: true
+
+    # --- Status Checks ---
+    # Los checks de CI deben pasar antes de mergear.
+    # Actualmente el repositorio no tiene workflows de CI propios;
+    # cuando se agreguen, listar sus nombres aquí y activar la opción.
+    require_status_checks_to_pass: false
+    # required_status_checks:
+    #   - build
+    #   - test
+    strict_required_status_checks: false     # Activar para exigir rama actualizada
+
+    # --- Restricciones de push ---
+    # Nadie puede hacer push directo a main; solo vía Pull Request
+    restrict_pushes: true
+    allowed_push_actors: []                  # Lista de usuarios/equipos con permiso de push directo (vacía = nadie)
+
+    # --- Administradores ---
+    # Las reglas también se aplican a los administradores del repositorio
+    enforce_admins: true
+
+    # --- Firma de commits (opcional) ---
+    require_signed_commits: false
