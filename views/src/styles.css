@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+
+@font-face {
+    font-family: 'NotoSerif';
+    src: url('../public/assets/fonts/NotoSerif-VariableFont_wdth\,wght.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'PTSerif';
+    src: url('../public/assets/fonts/PTSerif-Regular.ttf') format('truetype');
+}
+
+@theme{
+    --color-background: #FDECDA;
+    --color-contrast: #FCFAD9;
+    --color-accent: #FCD9E3;
+    --color-accent-hover: #F7C9DC;
+    --color-title: #EBCAA8;
+    --color-subtitle: #B5936F;
+    --color-text: #CBA884;
+
+    --font-title: 'NotoSerif';
+    --font-text: 'PTSerif';
+}
+
+body {
+    background-color: var(--color-background);
+}
+
+.title {
+    font-family: var(--font-title);
+    color: var(--color-title);
+    font-size: 5rem;
+}
+
+.subtitle {
+    font-family: var(--font-title);
+    color: var(--color-subtitle);
+    font-size: 2rem;
+}
+
+.txt {
+    font-family: var(--font-text);
+    color: var(--color-text);
+}
+
