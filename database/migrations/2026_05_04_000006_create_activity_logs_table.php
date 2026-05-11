@@ -17,7 +17,6 @@ return new class extends Migration
             $table->timestamp('created_at')->nullable();
 
             $table->index(['target_type', 'target_id', 'created_at']);
-            $table->index(['causer_type', 'causer_id']);
         });
     }
 
