@@ -1,49 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Facebook;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\MetaBaseController;
+use App\Models\Conversation;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class FacebookMessageController extends Controller
+class FacebookMessageController extends MetaBaseController
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function store(Request $request, Conversation $conversation): JsonResponse
     {
-        //
-    }
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:4096'],
+        ]);
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        // TODO: delegar a MessageService::send($conversation, $validated['body'], $request->user())
+        // El service encolará SendMessageJob hacia Meta Graph API.
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return $this->jsonSuccess([
+            'queued' => true,
+            'conversation_id' => $conversation->id,
+            'preview' => $validated['body'],
+        ], 202);
     }
 }
