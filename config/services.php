@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'graph_api_version' => env('META_GRAPH_API_VERSION', 'v21.0'),
+        'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+
+        'facebook' => [
+            'page_id' => env('FACEBOOK_PAGE_ID'),
+            'page_access_token' => env('FACEBOOK_PAGE_ACCESS_TOKEN'),
+            'redirect_uri' => env('FACEBOOK_REDIRECT_URI'),
+        ],
+    ],
+
 ];

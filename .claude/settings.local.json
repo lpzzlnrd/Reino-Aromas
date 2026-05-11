@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -l app/Services/Meta/FacebookAuthService.php)",
+      "Bash(php -l app/Services/Meta/FacebookAccountService.php)",
+      "Bash(php -l app/Services/Meta/FacebookSyncService.php)"
+    ]
+  }
+}
