@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Webhooks;
 
 use App\Http\Controllers\MetaBaseController;
+use App\Jobs\ProcessMetaWebhookJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -35,10 +36,9 @@ class MetaWebhookController extends MetaBaseController
             return response()->json(['status' => 'invalid_signature'], 403);
         }
 
-        // TODO: dispatch ProcessIncomingMessageJob with $request->all()
-        // El job se encargará de crear contact/conversation/message según el payload.
+        ProcessMetaWebhookJob::dispatch($request->all());
 
-        return response()->json(['status' => 'received']);
+        return response()->json(['status' => 'queued'], 202);
     }
 
     private function isValidSignature(Request $request): bool
