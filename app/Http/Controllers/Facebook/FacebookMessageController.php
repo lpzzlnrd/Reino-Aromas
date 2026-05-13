@@ -18,7 +18,7 @@ class FacebookMessageController extends MetaBaseController
         ]);
 
         // TODO: delegar a MessageService::send($conversation, $validated['body'], $request->user())
-        // El service encolará SendMessageJob hacia Meta Graph API.
+        // El service encola el sendMessageJOB HACIA la graph api
 
         return $this->jsonSuccess([
             'queued' => true,
