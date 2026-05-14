@@ -5,7 +5,7 @@
 
 <template>
     <div class="p-2 w-full h-full">
-        <div id="urgent-div" class="bg-background p-2 border-2 border-primary rounded-md">
+        <div id="urgent-div" class="card p-2">
             <header class="flex flex-row justify-between border-b-2 border-secondary p-1">
                 <p class="subtitle">Tickets urgentes</p>
                 <section class="text-red-800 flex flex-row gap-1">

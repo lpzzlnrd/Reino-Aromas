@@ -9,17 +9,17 @@
 </script>
 
 <template>
-    <header class="subtitle h-7 flex flex-row justify-between">
-        <p class="p-1">Panel de control</p>
-        <div class="flex flex-row gap-2 lg:gap-3.5">
-            <section id="search-section" class="group border-2 p-1 border-title focus-within:border-secondary focus-within:bg-contrast hover:border-accent-hover flex flex-row rounded-xl">
-                <Search class="group-hover:text-accent-hover"/>
-                <input id="search-bar" class="focus:outline-none" type="text">
+    <header class="subtitle py-4 flex flex-row justify-between items-center">
+        <p class="text-lg font-medium">Panel de control</p>
+        <div class="flex flex-row gap-3 lg:gap-5 items-center">
+            <section id="search-section" class="input-group w-48 lg:w-64">
+                <Search class="text-primary opacity-60 group-focus-within:opacity-100 transition-opacity"/>
+                <input id="search-bar" type="text" placeholder="Buscar...">
             </section>
-            <button id="notifications-btn" class="hover:cursor-pointer hover:text-accent-hover" type="button">
+            <button id="notifications-btn" class="text-primary opacity-70 hover:opacity-100 hover:scale-110 transition-all cursor-pointer" type="button">
                 <Bell />
             </button>
-            <button id="info-btn" class="hover:cursor-pointer hover:text-accent-hover" type="button">
+            <button id="info-btn" class="text-primary opacity-70 hover:opacity-100 hover:scale-110 transition-all cursor-pointer" type="button">
                 <Info />
             </button>
         </div>

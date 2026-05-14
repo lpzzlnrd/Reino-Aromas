@@ -82,10 +82,9 @@
             <!-- Action/Status Column -->
             <template #action="{ rowData }">
                 <div class="cell-action">
-                    <button id="btn-attend" class="py-2 px-4 border-2 border-primary bg-accent hover:cursor-pointer hover:bg-primary hover:text-secondary rounded-2xl" @click="$emit('attend', rowData)">
+                    <button id="btn-attend" class="btn-primary text-xs py-1.5 px-3" @click="$emit('attend', rowData)">
                         ATENDER
-                    </button>
-                </div>
+                    </button>                </div>
             </template>
         </DataTable>
     </div>

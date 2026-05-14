@@ -12,10 +12,10 @@
         xl:mx-110
         flex items-center justify-center rounded-3xl">
         <form id="login-form" class="w-full" action="submit">
-            <label class="mt-4 text-secondary" for="email-input">EMAIL</label>
-            <section class="group w-full mt-1 mb-3 p-1 gap-1 border-2 border-secondary focus-within:border-accent hover:border-accent-hover flex flex-row rounded-xl">
-                <At class="group-hover:text-accent-hover" />
-                <input id="email-input" class='focus:outline-none w-full' type="email" placeholder="nombre@reinoaromas.com" required>
+            <label class="mt-4 text-secondary text-sm font-semibold tracking-wide" for="email-input">EMAIL</label>
+            <section class="input-group mt-1 mb-4">
+                <At class="text-primary opacity-60 transition-opacity" />
+                <input id="email-input" type="email" placeholder="nombre@reinoaromas.com" required>
             </section>
             <password_input />
             <section class="mt-4 flex flex-row">
@@ -29,7 +29,7 @@
             </section>
             <hr class="my-4 text-secondary">
             <section class="flex items-center justify-center">
-                <button id="login-btn" class="border-2 border-primary bg-accent hover:bg-accent-hover hover:text-secondary w-50 p-2 rounded-2xl">Iniciar Sesion</button>
+                <button id="login-btn" class="btn-primary w-50 justify-center">Iniciar Sesion</button>
             </section>
         </form>
     </div>

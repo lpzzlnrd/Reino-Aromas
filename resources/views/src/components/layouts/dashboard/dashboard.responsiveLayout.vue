@@ -25,7 +25,7 @@
                 <Bars class="text-primary text-xl" />
             </button>
             <Logo class="w-28" />
-            <button id="new-sell-btn" class="font-txt text-txt border-2 border-primary bg-accent hover:bg-accent-hover hover:text-secondary px-3 py-1 rounded-lg flex items-center">
+            <button id="new-sell-btn" class="btn-primary">
                 <Plus />
                 <span class="ml-2">Nueva Venta</span>
             </button>
@@ -34,51 +34,51 @@
         <!-- Menu -->
         <div id="menu">
             <!-- Desktop Menu -->
-            <div id="desktop-menu" class="hidden md:flex bg-background h-full border-r-4 border-primary rounded-tr-2xl rounded-br-2xl w-54 flex-col">
+            <div id="desktop-menu" class="hidden md:flex sidebar-bg h-full rounded-tr-2xl rounded-br-2xl w-56 flex-col shadow-sm">
                 <!-- Desktop Menu Header -->
                 <div id="menu-header" class='mt-4 gap-2 flex flex-col items-center justify-center'>
                     <Logo class="w-30" />
                     <p class="text-primary font-primary text-xl">Reino Aromas</p>
-                    <button id="new-sell-btn" class="font-txt text-txt border-2 border-primary hover:border-subtitle bg-accent hover:bg-accent-hover hover:text-secondary px-4 py-1 w-40 rounded-lg flex flex-row">
+                    <button id="new-sell-btn" class="btn-primary">
                         <plus />
                         <p>Nueva Venta</p>
                     </button>
                 </div>
 
-                <hr class="text-secondary bg-secondary p-0.5 my-20 ml-3 w-48 min-w-30 rounded-full">
+                <hr class="border-t border-secondary opacity-30 my-10 mx-6">
 
                 <!-- Desktop Main Pages -->
                 <div id="pages-div">
                     <div class='font-secondary gap-2 flex flex-col items-center justify-center'>
-                        <button id="home-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="home-btn" class="nav-item">
                             <Home />
                             Home
                         </button>
-                        <button id="chats-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="chats-btn" class="nav-item">
                             <Message />
                             Chats
                         </button>
-                        <button id="users-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="users-btn" class="nav-item">
                             <Users />
                             Usuarios
                         </button>
-                        <button id="reports-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="reports-btn" class="nav-item">
                             <Chart />
                             Reportes
                         </button>
                     </div>
                 </div>
 
-                <hr class="text-secondary bg-secondary p-0.5 my-20 ml-3 w-48 min-w-30 rounded-full">
+                <hr class="border-t border-secondary opacity-30 my-10 mx-6">
 
                 <!-- Desktop Options & User Pages -->
                 <div id="options-div" class="font-secondary mt-23 p-4">
                     <footer class="gap-2 flex flex-col text-left items-center justify-center">
-                        <button id="profile-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="profile-btn" class="nav-item">
                             <User />
                             Perfil
                         </button>
-                        <button id="setting-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="setting-btn" class="nav-item">
                             <Gear />
                             Ajustes
                         </button>
@@ -102,7 +102,7 @@
                                 <p class="title text-2xl">Reino Aromas</p>
                             </header>
 
-                            <hr class="text-secondary bg-secondary p-0.5 my-32 rounded-full">
+                            <hr class="border-t border-secondary opacity-20 my-8 mx-4">
 
                             <!-- Mobile Main Pages -->
                             <div>
@@ -124,7 +124,7 @@
                                 </button>
                             </div>
 
-                            <hr class="text-secondary bg-secondary p-0.5 my-32 rounded-full">
+                            <hr class="border-t border-secondary opacity-20 my-8 mx-4">
 
                             <!-- Mobile Options & User Pages -->
                             <div>
