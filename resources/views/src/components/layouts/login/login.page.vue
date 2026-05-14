@@ -4,10 +4,8 @@
 </script>
 
 <template>
-    <div class="about"></div>
-
-    <About />
-    <Login />
-
-    <div class="register"></div>
+    <div class="mt-10">
+        <About />
+        <Login />
+    </div>
 </template>

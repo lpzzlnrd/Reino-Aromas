@@ -1,0 +1,85 @@
+@import 'tailwindcss';
+@import url('datatables.net-dt');
+@import url('datatables.net-fixedheader-dt');
+@import url('datatables.net-responsive-dt');
+
+@font-face {
+    font-family: 'NotoSerif';
+    src: url('../public/assets/fonts/NotoSerif-VariableFont_wdth\,wght.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'PTSerif';
+    src: url('../public/assets/fonts/PTSerif-Regular.ttf') format('truetype');
+}
+
+@theme{
+    --color-background: #FFFCED;
+    --color-primary: #6D123F;
+    --color-secondary: #FF8B95;
+    --color-accent: #FCC0C5;
+    --color-accent-hover: #E61F93;
+    --color-txt: #BD612A;
+
+    --font-primary: 'Roxborough';
+    --font-secondary: 'Poppins';
+}
+
+body {
+    background-color: var(--color-background);
+}
+
+.title {
+    font-family: var(--font-primary);
+    color: var(--color-primary);
+}
+
+.subtitle {
+    font-family: var(--font-primary);
+    color: var(--color-secondary);
+}
+
+.txt {
+    font-family: var(--font-secondary);
+    color: var(--color-txt);
+}
+
+#urgent-table {
+  width: 100%;
+  margin-top: 1%;
+  border: 2px solid var(--color-primary);
+  background: var(--color-background);
+}
+
+#urgent-table thead th {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: .08em;
+  color: var(--color-txt);
+  background: var(--color-primary);
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--color-primary);
+}
+
+#urgent-table tbody td {
+  padding: 18px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-primary);
+}
+
+#urgent-table thead th,
+#urgent-table tbody td {
+    text-align: left;
+}
+
+#urgent-table tbody tr{
+    color: var(--color-txt);
+}
+
+#urgent-table tbody tr:hover {
+  background: var(--color-accent-hover);
+  color: var(--color-secondary)
+}

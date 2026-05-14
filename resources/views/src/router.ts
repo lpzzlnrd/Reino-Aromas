@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import LoginPage from "./components/layouts/login/login.page.vue";
 
-import DashboardLayout from "./components/layouts/dashboard/dashboard.layout.vue";
+import DashboardLayout from "./components/layouts/dashboard/dashboard.responsiveLayout.vue";
 import DashboardHome from "./components/layouts/dashboard/dashboard.home.vue";
 
 const router = createRouter({
