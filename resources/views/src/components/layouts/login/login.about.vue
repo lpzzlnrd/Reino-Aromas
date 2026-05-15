@@ -3,8 +3,12 @@
 </script>
 
 <template>
-    <div class="about px-6 py-12 flex flex-col items-center justify-center rounded-3xl">
-        <Logo class="w-2xs"/>
-        <h1 class="title text-4xl">REINO AROMAS</h1>
+    <div class="flex flex-col items-center lg:items-start text-center lg:text-left">
+        <Logo class="w-48 mb-8 drop-shadow-xl animate-pulse" />
+        <h1 class="font-primary text-5xl lg:text-7xl text-primary mb-4 leading-tight">Reino Aromas</h1>
+        <p class="text-secondary text-lg lg:text-xl font-medium opacity-80 max-w-sm">
+            Gourmet & Artesanal. <br>
+            Gestiona la magia de tus fragancias desde un solo lugar.
+        </p>
     </div>
 </template>

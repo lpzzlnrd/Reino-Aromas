@@ -1,5 +1,7 @@
 <script setup lang="ts">
     import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+    import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+    import { faLocationDot } from '@fortawesome/free-solid-svg-icons'
 
     let intervalId: number | undefined
 
@@ -30,11 +32,6 @@
         currentPercentage.value[city] = Math.min(next, targetPercentage.value[city])
     }
 
-    function reduce_bar(city: City, step = 2){
-        const next = currentPercentage.value[city] - step
-        currentPercentage.value[city] = Math.max(next, 0)
-    }
-
     function startBars() {
         intervalId = window.setInterval(() => {
             move_bar('caracas')
@@ -49,7 +46,7 @@
             if (finished && intervalId !== undefined) {
                 clearInterval(intervalId)
             }
-        }, 20)
+        }, 30)
     }
 
     onMounted(() => {
@@ -62,57 +59,72 @@
 </script>
 
 <template>
-    <div class="p-2 w-full lg:w-2/3">
-        <div id="cities-div" class="card p-2 h-full flex flex-col justify-between">
-            <header class="border-b-2 border-secondary p-1">
-                <p class="subtitle">Distribucion por ciudad</p>
-            </header>
+    <div id="cities-div" class="glass-card p-6 h-full flex flex-col">
+        <header class="mb-8 px-2">
+            <h2 class="text-xl font-primary text-primary">Distribución</h2>
+            <p class="text-[10px] font-bold text-secondary uppercase tracking-widest opacity-60">Clientes por ciudad</p>
+        </header>
 
-            <div id="states" class="flex flex-col gap-4">
-                <div id="caracas-div">
-                    <section id="caracas-section" class="txt flex flex-row justify-between">
-                        <p>Caracas</p>
-                        <p id="caracas-percentage">{{ currentPercentage.caracas.toFixed(2) }}%</p>
-                    </section>
-                    <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
-                        <section
-                            id="caracas-percentage-bar"
-                            class="w-full bar-fill h-full transition-all duration-500 ease-out"
-                            :style="{ width: `${currentPercentage.caracas}%`}"
-                        ></section>
+        <div id="states" class="flex flex-col gap-6 flex-1 justify-center">
+            
+            <!-- Caracas -->
+            <div id="caracas-div" class="group">
+                <section id="caracas-section" class="flex flex-row justify-between items-end mb-2 px-1">
+                    <div class="flex items-center gap-2">
+                        <FontAwesomeIcon :icon="faLocationDot" class="text-primary opacity-30 group-hover:opacity-100 transition-opacity" />
+                        <span class="text-sm font-bold text-primary/80 tracking-wide">Caracas</span>
                     </div>
+                    <span id="caracas-percentage" class="text-xs font-bold text-secondary">{{ currentPercentage.caracas.toFixed(1) }}%</span>
+                </section>
+                <div class="w-full bg-primary/5 rounded-full h-2.5 overflow-hidden">
+                    <div
+                        id="caracas-percentage-bar"
+                        class="bar-fill h-full transition-all duration-700 ease-out"
+                        :style="{ width: `${currentPercentage.caracas}%`}"
+                    ></div>
                 </div>
-
-                <div id="valencia-div">
-                    <section id="valencia-section" class="txt flex flex-row justify-between">
-                        <p>Valencia</p>
-                        <p id="valencia-percentage">{{ currentPercentage.valencia.toFixed(2) }}%</p>
-                    </section>
-                    <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
-                        <section
-                            id="valencia-percentage-bar"
-                            class="w-full bar-fill h-full transition-all duration-500 ease-out"
-                            :style="{ width: `${currentPercentage.valencia}%`}"
-                        ></section>
-                    </div>
-                </div>
-
-                <div id="barquisimeto-div">
-                    <section id="barquisimeto-section" class="txt flex flex-row justify-between">
-                        <p>Barquisimeto</p>
-                        <p id="barquisimeto-percentage">{{ currentPercentage.barquisimeto.toFixed(2) }}%</p>
-                    </section>
-                    <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
-                        <section
-                            id="barquisimeto-percentage-bar"
-                            class="w-full bar-fill h-full transition-all duration-500 ease-out"
-                            :style="{ width: `${currentPercentage.barquisimeto}%`}"
-                        ></section>
-                    </div>
-                </div>
-
             </div>
 
+            <!-- Valencia -->
+            <div id="valencia-div" class="group">
+                <section id="valencia-section" class="flex flex-row justify-between items-end mb-2 px-1">
+                    <div class="flex items-center gap-2">
+                        <FontAwesomeIcon :icon="faLocationDot" class="text-primary opacity-30 group-hover:opacity-100 transition-opacity" />
+                        <span class="text-sm font-bold text-primary/80 tracking-wide">Valencia</span>
+                    </div>
+                    <span id="valencia-percentage" class="text-xs font-bold text-secondary">{{ currentPercentage.valencia.toFixed(1) }}%</span>
+                </section>
+                <div class="w-full bg-primary/5 rounded-full h-2.5 overflow-hidden">
+                    <div
+                        id="valencia-percentage-bar"
+                        class="bar-fill h-full transition-all duration-700 ease-out"
+                        :style="{ width: `${currentPercentage.valencia}%`}"
+                    ></div>
+                </div>
+            </div>
+
+            <!-- Barquisimeto -->
+            <div id="barquisimeto-div" class="group">
+                <section id="barquisimeto-section" class="flex flex-row justify-between items-end mb-2 px-1">
+                    <div class="flex items-center gap-2">
+                        <FontAwesomeIcon :icon="faLocationDot" class="text-primary opacity-30 group-hover:opacity-100 transition-opacity" />
+                        <span class="text-sm font-bold text-primary/80 tracking-wide">Barquisimeto</span>
+                    </div>
+                    <span id="barquisimeto-percentage" class="text-xs font-bold text-secondary">{{ currentPercentage.barquisimeto.toFixed(1) }}%</span>
+                </section>
+                <div class="w-full bg-primary/5 rounded-full h-2.5 overflow-hidden">
+                    <div
+                        id="barquisimeto-percentage-bar"
+                        class="bar-fill h-full transition-all duration-700 ease-out"
+                        :style="{ width: `${currentPercentage.barquisimeto}%`}"
+                    ></div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-primary/5 text-center">
+            <p class="text-[10px] text-primary/40 font-bold uppercase tracking-widest">Total Clientes: {{ total }}</p>
         </div>
     </div>
 </template>

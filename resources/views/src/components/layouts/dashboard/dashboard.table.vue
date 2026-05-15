@@ -1,6 +1,5 @@
 <script setup lang="ts">
-    import User from '../../icons/icon.user.vue'
-
+    import UserIcon from '../../icons/icon.user.vue'
     import DataTable from 'datatables.net-vue3';
     import DataTablesCore from 'datatables.net-dt';
     import 'datatables.net-fixedheader-dt';
@@ -11,11 +10,21 @@
     // Delete this in case of using Ajax Data
     const data = [
         {
-            client: 'Nombre cliente',
-            id: '#RE-0000',
-            problem: 'Problema del cliente',
-            wait: '0 min',
-            assigned: 'Agente asignado',
+            client: 'María González',
+            id: '#RE-8829',
+            problem: 'Error en pago móvil',
+            wait: '4 min',
+            assigned: 'Luis Pérez',
+            assignedAvatar: '',
+            status: 'Urgente'
+        },
+        {
+            client: 'Juan Rodriguez',
+            id: '#RE-8830',
+            problem: 'Consulta fragancia lavanda',
+            wait: '12 min',
+            assigned: 'Sofía Castro',
+            assignedAvatar: '',
             status: 'Urgente'
         },
     ]
@@ -23,22 +32,14 @@
     const columns = [
         { data: 'client', title: 'Cliente', render: '#client' },
         { data: 'problem', title: 'Problema' },
-        { data: 'wait', title: 'Tiempo de espera' },
+        { data: 'wait', title: 'Espera' },
         { data: 'assigned', title: 'Asignado', render: '#assigned' },
         { data: null, title: 'Acción', render: '#action' },
     ]
 </script>
 
 <template>
-    <div class="overflow-x-auto">
-        <!-- Ajax Data Import Example -->
-        <!--
-            <DataTable
-                :columns="columns"
-                ajax="/data.json"
-                class="display"
-            />
-         -->
+    <div class="overflow-x-auto custom-scrollbar">
         <DataTable
             id="urgent-table"
             :data="data"
@@ -48,47 +49,63 @@
                 searching: false,
                 info: false,
                 ordering: false,
-                responsive: false,
+                responsive: true,
+                autoWidth: false
             }"
         >
             <!-- Client Column -->
             <template #client="{ rowData }">
-                <div id="cell-client" class="flex flex-row items-center gap-2">
-                    <section id="avatar">
-                        <User id="user-avatar" />
-                    </section>
-                    <div id="client-meta">
-                        <section id="client-name" class="font-secondary">{{ rowData.client }}</section>
-                        <section id="client-id" class="font-secondary">{{ rowData.id }}</section>
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-primary overflow-hidden border border-white/50">
+                        <UserIcon class="text-3xl translate-y-1 opacity-80" />
+                    </div>
+                    <div>
+                        <div class="font-bold text-primary text-sm leading-tight">{{ rowData.client }}</div>
+                        <div class="text-[10px] font-bold text-secondary uppercase tracking-widest opacity-60">{{ rowData.id }}</div>
                     </div>
                 </div>
             </template>
 
             <!-- Agent Assigned Column -->
             <template #assigned="{ rowData }">
-                <div id="cell-assigned" class="flex flex-row gap-1">
-                    <div id="assigned-avatar">
-                        <img v-if="rowData.assignedAvatar" :src="rowData.assignedAvatar" class="rounded-full w-6 h-6" />
-                        <div v-else class="rounded-full w-6 h-6 bg-accent flex items-center justify-center txt-small">
-                            {{ rowData.assigned ? rowData.assigned.charAt(0) : '' }}
-                        </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold border border-white/50">
+                        {{ rowData.assigned ? rowData.assigned.charAt(0) : '?' }}
                     </div>
-                    <div class="assigned-name txt-small">
+                    <div class="text-xs font-medium text-primary/80">
                         {{ rowData.assigned || 'Sin asignar' }}
                     </div>
                 </div>
             </template>
 
-            <!-- Action/Status Column -->
+            <!-- Action Column -->
             <template #action="{ rowData }">
-                <div class="cell-action">
-                    <button id="btn-attend" class="btn-primary text-xs py-1.5 px-3" @click="$emit('attend', rowData)">
+                <div class="flex justify-end">
+                    <button class="btn-primary text-[10px] py-1.5 px-4 rounded-lg shadow-sm" @click="$emit('attend', rowData)">
                         ATENDER
-                    </button>                </div>
+                    </button>
+                </div>
             </template>
         </DataTable>
     </div>
 </template>
 
 <style>
+/* Global overrides for DataTables to match our glassy theme */
+.dataTables_wrapper .dataTables_scroll {
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+table.dataTable {
+    border-collapse: collapse !important;
+}
+
+table.dataTable thead th {
+    border-bottom: 1px solid rgba(109, 18, 63, 0.1) !important;
+}
+
+table.dataTable td {
+    border-bottom: 1px solid rgba(109, 18, 63, 0.05) !important;
+}
 </style>
