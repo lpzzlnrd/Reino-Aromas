@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'meta' => [
+        'app_secret'           => env('META_APP_SECRET'),
+        'access_token'         => env('META_ACCESS_TOKEN'),
+        'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+        'graph_api_version'    => env('META_GRAPH_API_VERSION', 'v21.0'),
+        'instagram_account_id' => env('META_INSTAGRAM_ACCOUNT_ID'),
+    ],
+
 ];

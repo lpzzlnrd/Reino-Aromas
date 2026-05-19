@@ -14,6 +14,9 @@
 /.zed
 /auth.json
 /node_modules
+/resources/views/node_modules
+/.claude
+/skills
 /public/build
 /public/hot
 /public/storage
