@@ -40,6 +40,11 @@ class User extends Authenticatable
         ];
     }
 
+    public function isSuperadmin(): bool
+    {
+        return $this->role === 'superadmin';
+    }
+
     public function assignedTickets(): HasMany
     {
         return $this->hasMany(Ticket::class, 'assigned_user_id');
