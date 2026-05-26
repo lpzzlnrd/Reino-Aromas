@@ -40,7 +40,8 @@ return [
         'access_token'         => env('META_ACCESS_TOKEN'),
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
         'graph_api_version'    => env('META_GRAPH_API_VERSION', 'v21.0'),
-        'instagram_account_id' => env('META_INSTAGRAM_ACCOUNT_ID'),
+        'instagram_account_id'      => env('META_INSTAGRAM_ACCOUNT_ID'),
+        'whatsapp_phone_number_id'  => env('META_WHATSAPP_PHONE_NUMBER_ID'),
     ],
 
 ];
