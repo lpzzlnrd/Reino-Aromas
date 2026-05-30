@@ -63,7 +63,7 @@
 
 <template>
     <div class="p-2 w-full lg:w-2/3">
-        <div id="cities-div" class="bg-background border-2 border-title rounded-md p-2 h-full flex flex-col justify-between">
+        <div id="cities-div" class="bg-background border-2 border-title rounded-md p-2 h-full flex flex-col justify-between shadow-xl">
             <header class="border-b-2 border-secondary p-1">
                 <p class="subtitle">Distribucion por ciudad</p>
             </header>
@@ -77,7 +77,7 @@
                     <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
                         <section
                             id="caracas-percentage-bar"
-                            class="w-full bg-secondary h-full transition-all duration-500 ease-out"
+                            class="w-full bg-linear-to-r from-primary via-accent-hover to-secondary h-full transition-all duration-500 ease-out"
                             :style="{ width: `${currentPercentage.caracas}%`}"
                         ></section>
                     </div>
@@ -91,7 +91,7 @@
                     <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
                         <section
                             id="valencia-percentage-bar"
-                            class="w-full bg-secondary h-full transition-all duration-500 ease-out"
+                            class="w-full bg-linear-to-r from-primary via-accent-hover to-secondary h-full transition-all duration-500 ease-out"
                             :style="{ width: `${currentPercentage.valencia}%`}"
                         ></section>
                     </div>
@@ -105,7 +105,7 @@
                     <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
                         <section
                             id="barquisimeto-percentage-bar"
-                            class="w-full bg-secondary h-full transition-all duration-500 ease-out"
+                            class="w-full bg-linear-to-r from-primary via-accent-hover to-secondary h-full transition-all duration-500 ease-out"
                             :style="{ width: `${currentPercentage.barquisimeto}%`}"
                         ></section>
                     </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
     import { ref } from 'vue'
+    import { useRoute, useRouter } from 'vue-router'
 
     import Logo from '../../logo.vue'
     import Plus from '../../icons/icon.plus.vue'
@@ -11,6 +12,26 @@
     import Gear from '../../icons/icon.setting.vue'
     import Close from '../../icons/icon.close.vue'
     import Bars from '../../icons/icon.bars.vue'
+
+    const route = useRoute()
+    const router = useRouter()
+
+    const baseBtn = 'text-left border-primary rounded-md my-0 px-4 py-2 w-40 max-w-40 transition'
+    const inactiveBtn = 'text-txt hover:cursor-pointer hover:bg-primary hover:text-secondary'
+    const activeBtn = 'text-primary border-r-4 bg-accent'
+
+    const isActive = (name: string | string[]) => {
+        const current = route.name as string | undefined
+        if (!current) return false
+        if (Array.isArray(name)) return name.includes(current)
+        return current === name
+    }
+
+    const buttonClass = (name: string | string[]) => `${baseBtn} ${isActive(name) ? activeBtn : inactiveBtn}`
+
+    const goTo = (name: string) => {
+        router.push({ name })
+    }
 
     const open = ref(false)
     const close = () => (open.value = false)
@@ -25,21 +46,21 @@
                 <Bars class="text-primary text-xl" />
             </button>
             <Logo class="w-28" />
-            <button id="new-sell-btn" class="font-txt text-txt border-2 border-primary bg-accent hover:bg-accent-hover hover:text-secondary px-3 py-1 rounded-lg flex items-center">
+            <button id="new-sell-btn" class="font-txt text-txt border-2 border-primary hover:bg-accent-hover hover:text-secondary px-3 py-1 rounded-lg flex items-center">
                 <Plus />
                 <span class="ml-2">Nueva Venta</span>
             </button>
         </header>
 
         <!-- Menu -->
-        <div id="menu">
+        <div id="dashboard-menu">
             <!-- Desktop Menu -->
-            <div id="desktop-menu" class="hidden md:flex bg-background h-full border-r-4 border-primary rounded-tr-2xl rounded-br-2xl w-54 flex-col">
+            <div id="dashboard-desktop-menu" class="hidden md:flex bg-background h-full border-r-4 border-primary rounded-tr-2xl rounded-br-2xl w-54 flex-col">
                 <!-- Desktop Menu Header -->
-                <div id="menu-header" class='mt-4 gap-2 flex flex-col items-center justify-center'>
+                <div id="dashboard-menu-header" class='mt-4 gap-2 flex flex-col items-center justify-center'>
                     <Logo class="w-30" />
                     <p class="text-primary font-primary text-xl">Reino Aromas</p>
-                    <button id="new-sell-btn" class="font-txt text-txt border-2 border-primary hover:border-subtitle bg-accent hover:bg-accent-hover hover:text-secondary px-4 py-1 w-40 rounded-lg flex flex-row">
+                    <button id="new-sell-btn" class="font-txt text-txt border-2 border-secondary hover:border-subtitle hover:bg-primary hover:border-primary hover:text-secondary px-4 py-1 w-40 rounded-lg flex flex-row">
                         <plus />
                         <p>Nueva Venta</p>
                     </button>
@@ -50,19 +71,33 @@
                 <!-- Desktop Main Pages -->
                 <div id="pages-div">
                     <div class='font-secondary gap-2 flex flex-col items-center justify-center'>
-                        <button id="home-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="home-btn" :class="buttonClass('Dashboard Home')" type:toggle @click="goTo('Dashboard Home')">
                             <Home />
                             Home
                         </button>
-                        <button id="chats-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="chats-btn" :class="buttonClass('Messages Home')" type:toggle @click="goTo('Messages Home')">
                             <Message />
                             Chats
                         </button>
-                        <button id="users-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
-                            <Users />
+                        <button id="users-btn" type:toggle class="
+                            text-txt text-left
+                            border-primary rounded-md
+                            my-0 px-4 py-2 w-40 max-w-40 transition
+                            focus:text-primary focus:border-r-4  focus:bg-accent
+                            hover:cursor-pointer hover:bg-primary hover:text-secondary
+                            focus:hover:text-secondary focus:hover:border-secondary
+                        ">
+                           <Users />
                             Usuarios
                         </button>
-                        <button id="reports-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="reports-btn" type:toggle class="
+                            text-txt text-left
+                            border-primary rounded-md
+                            my-0 px-4 py-2 w-40 max-w-40 transition
+                            focus:text-primary focus:border-r-4  focus:bg-accent
+                            hover:cursor-pointer hover:bg-primary hover:text-secondary
+                            focus:hover:text-secondary focus:hover:border-secondary
+                        ">
                             <Chart />
                             Reportes
                         </button>
@@ -72,13 +107,20 @@
                 <hr class="text-secondary bg-secondary p-0.5 my-20 ml-3 w-48 min-w-30 rounded-full">
 
                 <!-- Desktop Options & User Pages -->
-                <div id="options-div" class="font-secondary mt-23 p-4">
+                <div id="options-div" class="font-secondary p-4">
                     <footer class="gap-2 flex flex-col text-left items-center justify-center">
-                        <button id="profile-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="profile-btn" type:toggle class="
+                            text-txt text-left
+                            border-primary rounded-md
+                            my-0 px-4 py-2 w-40 max-w-40 transition
+                            focus:text-primary focus:border-r-4  focus:bg-accent
+                            hover:cursor-pointer hover:bg-primary hover:text-secondary
+                            focus:hover:text-secondary focus:hover:border-secondary
+                        ">
                             <User />
                             Perfil
                         </button>
-                        <button id="setting-btn" type:toggle class="text-txt focus:border-r-4 border-text hover:border-subtitle hover:cursor-pointer hover:bg-accent-hover hover:text-secondary focus:bg-accent my-0 px-4 py-2 w-40 max-w-40 rounded-md">
+                        <button id="settings-btn" :class="buttonClass('Dashboard Settings')" type:toggle @click="goTo('Dashboard Settings')">
                             <Gear />
                             Ajustes
                         </button>
@@ -87,7 +129,7 @@
             </div>
 
             <!-- Mobile Menu -->
-            <div id="mobile-menu">
+            <div id="dashboard-mobile-menu">
                 <transition name="slide">
                     <div v-if="open" class="fixed inset-0 z-40 flex md:hidden">
                         <div class="w-64 bg-background border-r-2 border-primary p-4 overflow-y-auto">
@@ -95,7 +137,7 @@
                             <header class="flex flex-col">
                                 <section class="flex flex-row justify-between">
                                     <Logo class="w-24" />
-                                    <button @click="close" aria-label="Cerrar menú" class="p-2">
+                                    <button @click="close()" aria-label="Cerrar menú" class="p-2">
                                         <Close class="text-primary text-xl" />
                                     </button>
                                 </section>
@@ -106,19 +148,19 @@
 
                             <!-- Mobile Main Pages -->
                             <div>
-                                <button @click="close" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
+                                <button @click="goTo('Dashboard Home'); close()" :class="buttonClass('Dashboard Home')">
                                     <Home />
                                     Home
                                 </button>
-                                <button @click="close" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
+                                <button @click="goTo('Messages Home'); close()" :class="buttonClass('Messages Home')">
                                     <Message />
                                     Chats
                                 </button>
-                                <button @click="close" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
+                                <button @click="close()" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
                                     <Users />
                                     Usuarios
                                 </button>
-                                <button @click="close" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
+                                <button @click="close()" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
                                     <Chart />
                                     Reportes
                                 </button>
@@ -128,17 +170,17 @@
 
                             <!-- Mobile Options & User Pages -->
                             <div>
-                                <button @click="close" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
+                                <button @click="close()" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
                                     <User />
                                     Perfil
                                 </button>
-                                <button @click="close" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
+                                <button @click="goTo('Dashboard Settings'); close()" :class="buttonClass('Dashboard Settings')">
                                     <Gear />
                                     Ajustes
                                 </button>
                             </div>
                         </div>
-                        <section class="flex-1 bg-black bg-opacity-30" @click="close"></section>
+                        <section class="flex-1 bg-black bg-opacity-30" @click="close()"></section>
                     </div>
                 </transition>
             </div>

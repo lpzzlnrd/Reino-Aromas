@@ -1,6 +1,14 @@
 <script setup lang="ts">
+    import { useRouter } from 'vue-router'
+
     import At from '../../icons/icon.at.vue'
     import password_input from '../../password_input.vue';
+
+    const router = useRouter()
+
+    const goTo = (name: string) =>{
+        router.push({ name })
+    }
 </script>
 
 <template>
@@ -11,7 +19,7 @@
         lg:mx-80
         xl:mx-110
         flex items-center justify-center rounded-3xl">
-        <form id="login-form" class="w-full" action="submit">
+        <form id="login-form" class="txt w-full" action="submit">
             <label class="mt-4 text-secondary" for="email-input">EMAIL</label>
             <section class="group w-full mt-1 mb-3 p-1 gap-1 border-2 border-secondary focus-within:border-accent hover:border-accent-hover flex flex-row rounded-xl">
                 <At class="group-hover:text-accent-hover" />
@@ -29,7 +37,7 @@
             </section>
             <hr class="my-4 text-secondary">
             <section class="flex items-center justify-center">
-                <button id="login-btn" class="border-2 border-primary bg-accent hover:bg-accent-hover hover:text-secondary w-50 p-2 rounded-2xl">Iniciar Sesion</button>
+                <button @click="goTo('Dashboard Home')" id="login-btn" class="border-2 border-primary bg-accent hover:bg-primary hover:text-secondary w-50 p-2 rounded-2xl">Iniciar Sesion</button>
             </section>
         </form>
     </div>

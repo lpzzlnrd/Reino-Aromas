@@ -1,4 +1,6 @@
 <script setup lang="ts">
+    import { CaseStatus, useCaseStatus } from '@/hooks/caseStatus.ts';
+
     import User from '../../icons/icon.user.vue'
 
     import DataTable from 'datatables.net-vue3';
@@ -16,7 +18,7 @@
             problem: 'Problema del cliente',
             wait: '0 min',
             assigned: 'Agente asignado',
-            status: 'Urgente'
+            status: CaseStatus.HighPriority
         },
     ]
 
@@ -30,7 +32,7 @@
 </script>
 
 <template>
-    <div class="overflow-x-auto">
+    <div class="scroll overflow-x-auto">
         <!-- Ajax Data Import Example -->
         <!--
             <DataTable
@@ -82,7 +84,7 @@
             <!-- Action/Status Column -->
             <template #action="{ rowData }">
                 <div class="cell-action">
-                    <button id="btn-attend" class="py-2 px-4 border-2 border-primary bg-accent hover:cursor-pointer hover:bg-primary hover:text-secondary rounded-2xl" @click="$emit('attend', rowData)">
+                    <button id="btn-attend" class="py-2 px-4 border-2 border-secondary bg-background hover:cursor-pointer hover:bg-primary hover:border-primary hover:text-secondary rounded-2xl" @click="$emit('attend', rowData)">
                         ATENDER
                     </button>
                 </div>

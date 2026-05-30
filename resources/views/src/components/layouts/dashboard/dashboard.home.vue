@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import Header from '../header/header.vue'
     import Relevant_Data from './dashboard.relevant.vue'
-    import Recents from './dashboar.recents.vue'
+    import Recents from './dashboard.recents.vue'
     import Cities from './dashboard.cities.vue'
     import Urgent from './dashboard.urgent.vue'
 </script>

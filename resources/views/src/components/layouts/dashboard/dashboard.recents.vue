@@ -4,7 +4,7 @@
 
 <template>
     <div class="p-2 w-full lg:w-2/3">
-        <div id="recents-div" class="border-2 border-primary bg-background rounded-md h-full p-2">
+        <div id="recents-div" class="border-2 border-primary bg-background rounded-md h-full p-2 shadow-lg">
             <header class="subtitle border-b-2 border-secondary flex flex-row justify-between p-1">
                 <p>Actividad reciente</p>
                 <nav class="hover:cursor-pointer hover:text-accent-hover">ver todo</nav>
@@ -26,7 +26,7 @@
                             </section>
                         </section>
                     </section>
-                    <p id="chat1-action" class="txt bg-accent border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Fragancia</p>
+                    <p id="chat1-action" class="txt bg-background border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Fragancia</p>
                 </div>
 
                 <div id="chat2" class="flex flex-row justify-between">
@@ -45,7 +45,7 @@
                             </section>
                         </section>
                     </section>
-                    <p id="chat1-action" class="txt bg-accent border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Reserva</p>
+                    <p id="chat1-action" class="txt bg-background border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Reserva</p>
                 </div>
 
                 <div id="chat3" class="flex flex-row justify-between">
@@ -64,7 +64,7 @@
                             </section>
                         </section>
                     </section>
-                    <p id="chat1-action" class="txt bg-accent border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Venta</p>
+                    <p id="chat1-action" class="txt bg-background border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Venta</p>
                 </div>
 
                 <div id="chat4" class="flex flex-row justify-between">
@@ -83,7 +83,7 @@
                             </section>
                         </section>
                     </section>
-                    <p id="chat1-action" class="txt bg-accent border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Atención</p>
+                    <p id="chat1-action" class="txt bg-background border-2 border-secondary rounded-xl py-1 px-4 text-sm flex items-center">Atención</p>
                 </div>
             </div>
         </div>
