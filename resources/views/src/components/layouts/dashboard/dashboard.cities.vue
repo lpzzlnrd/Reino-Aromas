@@ -11,108 +11,69 @@
         barquisimeto: 182,
     }
 
+    const cityLabels: Record<City, string> = {
+        caracas: 'Caracas',
+        valencia: 'Valencia',
+        barquisimeto: 'Barquisimeto',
+    }
+
+    const barColors: Record<City, string> = {
+        caracas:      'from-primary to-secondary',
+        valencia:     'from-secondary to-accent-hover',
+        barquisimeto: 'from-accent-hover to-pink-400',
+    }
+
     const total = computed(() => Object.values(clients).reduce((a, b) => a + b, 0))
 
     const targetPercentage = computed<Record<City, number>>(() => ({
-        caracas: (clients.caracas / total.value) * 100,
-        valencia: (clients.valencia / total.value) * 100,
+        caracas:      (clients.caracas / total.value) * 100,
+        valencia:     (clients.valencia / total.value) * 100,
         barquisimeto: (clients.barquisimeto / total.value) * 100,
     }))
 
-    const currentPercentage = ref<Record<City, number>>({
-        caracas: 0,
-        valencia: 0,
-        barquisimeto: 0,
-    })
+    const currentPercentage = ref<Record<City, number>>({ caracas: 0, valencia: 0, barquisimeto: 0 })
 
-    function move_bar(city: City, step = 2){
-        const next = currentPercentage.value[city] + step
-        currentPercentage.value[city] = Math.min(next, targetPercentage.value[city])
-    }
-
-    function reduce_bar(city: City, step = 2){
-        const next = currentPercentage.value[city] - step
-        currentPercentage.value[city] = Math.max(next, 0)
-    }
+    const cities: City[] = ['caracas', 'valencia', 'barquisimeto']
 
     function startBars() {
         intervalId = window.setInterval(() => {
-            move_bar('caracas')
-            move_bar('valencia')
-            move_bar('barquisimeto')
-
-            const finished =
-                currentPercentage.value.caracas >= targetPercentage.value.caracas &&
-                currentPercentage.value.valencia >= targetPercentage.value.valencia &&
-                currentPercentage.value.barquisimeto >= targetPercentage.value.barquisimeto
-
-            if (finished && intervalId !== undefined) {
-                clearInterval(intervalId)
+            let finished = true
+            for (const city of cities) {
+                const next = Math.min(currentPercentage.value[city] + 2, targetPercentage.value[city])
+                currentPercentage.value[city] = next
+                if (next < targetPercentage.value[city]) finished = false
             }
+            if (finished && intervalId !== undefined) clearInterval(intervalId)
         }, 20)
     }
 
-    onMounted(() => {
-        startBars()
-    })
-
-    onBeforeUnmount(() => {
-        if (intervalId !== undefined) clearInterval(intervalId)
-    })
+    onMounted(startBars)
+    onBeforeUnmount(() => { if (intervalId !== undefined) clearInterval(intervalId) })
 </script>
 
 <template>
-    <div class="p-2 w-full lg:w-2/3">
-        <div id="cities-div" class="bg-background border-2 border-title rounded-md p-2 h-full flex flex-col justify-between shadow-xl">
-            <header class="border-b-2 border-secondary p-1">
-                <p class="subtitle">Distribucion por ciudad</p>
-            </header>
+    <div class="glass-card h-full p-6 flex flex-col gap-5">
+        <header class="flex items-center justify-between">
+            <h2 class="text-xl font-primary text-primary">Por ciudad</h2>
+            <span class="text-[10px] font-bold text-secondary uppercase tracking-widest opacity-70">Clientes activos</span>
+        </header>
 
-            <div id="states" class="flex flex-col gap-4">
-                <div id="caracas-div">
-                    <section id="caracas-section" class="txt flex flex-row justify-between">
-                        <p>Caracas</p>
-                        <p id="caracas-percentage">{{ currentPercentage.caracas.toFixed(2) }}%</p>
-                    </section>
-                    <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
-                        <section
-                            id="caracas-percentage-bar"
-                            class="w-full bg-linear-to-r from-primary via-accent-hover to-secondary h-full transition-all duration-500 ease-out"
-                            :style="{ width: `${currentPercentage.caracas}%`}"
-                        ></section>
-                    </div>
+        <div class="flex flex-col gap-5 flex-1 justify-center">
+            <div v-for="city in cities" :key="city" class="flex flex-col gap-1.5">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm font-semibold text-primary/80">{{ cityLabels[city] }}</span>
+                    <span class="text-xs font-bold text-primary/50 tabular-nums">
+                        {{ currentPercentage[city].toFixed(1) }}%
+                    </span>
                 </div>
-
-                <div id="valencia-div">
-                    <section id="valencia-section" class="txt flex flex-row justify-between">
-                        <p>Valencia</p>
-                        <p id="valencia-percentage">{{ currentPercentage.valencia.toFixed(2) }}%</p>
-                    </section>
-                    <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
-                        <section
-                            id="valencia-percentage-bar"
-                            class="w-full bg-linear-to-r from-primary via-accent-hover to-secondary h-full transition-all duration-500 ease-out"
-                            :style="{ width: `${currentPercentage.valencia}%`}"
-                        ></section>
-                    </div>
+                <div class="w-full bg-primary/8 rounded-full h-2.5 overflow-hidden">
+                    <div
+                        :class="`h-full bg-gradient-to-r ${barColors[city]} rounded-full transition-all duration-300`"
+                        :style="{ width: `${currentPercentage[city]}%` }"
+                    ></div>
                 </div>
-
-                <div id="barquisimeto-div">
-                    <section id="barquisimeto-section" class="txt flex flex-row justify-between">
-                        <p>Barquisimeto</p>
-                        <p id="barquisimeto-percentage">{{ currentPercentage.barquisimeto.toFixed(2) }}%</p>
-                    </section>
-                    <div class="w-full bg-background border-2 border-primary rounded-full h-4 overflow-hidden">
-                        <section
-                            id="barquisimeto-percentage-bar"
-                            class="w-full bg-linear-to-r from-primary via-accent-hover to-secondary h-full transition-all duration-500 ease-out"
-                            :style="{ width: `${currentPercentage.barquisimeto}%`}"
-                        ></section>
-                    </div>
-                </div>
-
+                <p class="text-[11px] text-primary/40">{{ clients[city] }} clientes</p>
             </div>
-
         </div>
     </div>
 </template>

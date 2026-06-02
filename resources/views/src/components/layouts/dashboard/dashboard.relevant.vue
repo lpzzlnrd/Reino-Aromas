@@ -1,53 +1,36 @@
 <script setup lang="ts">
-    import { ref, onMounted, onBeforeUnmount } from 'vue';
+    import { ref } from 'vue';
     import { useCaseStatus, CaseStatus } from '@/hooks/caseStatus';
 
     const { casesByStatus } = useCaseStatus()
     const chatIncrease = ref(0)
 
+    const cards = [
+        { label: 'Nuevos',       status: CaseStatus.New,         accent: 'from-violet-400 to-primary',    badge: 'text-green-600',  badgeLabel: `+${chatIncrease.value}%` },
+        { label: 'Interesados',  status: CaseStatus.Interested,  accent: 'from-pink-400 to-secondary',    badge: '',                badgeLabel: '' },
+        { label: 'Seguimiento',  status: CaseStatus.Following,   accent: 'from-sky-400 to-cyan-500',      badge: 'text-sky-600',    badgeLabel: 'activos' },
+        { label: 'Urgentes',     status: CaseStatus.HighPriority,accent: 'from-red-400 to-rose-600',      badge: 'text-red-600',    badgeLabel: '⚠ atención' },
+        { label: 'Reservas',     status: CaseStatus.Reserved,    accent: 'from-fuchsia-400 to-pink-500',  badge: 'text-green-600',  badgeLabel: 'totales' },
+        { label: 'Cerrados',     status: CaseStatus.Closed,      accent: 'from-stone-400 to-stone-600',   badge: 'text-primary/40', badgeLabel: 'histórico' },
+    ]
 </script>
 
 <template>
-    <div id="resume-div" class="txt w-full flex flex-col lg:flex-row gap-1 lg:gap-4 p-2">
-        <div class="bg-background border-2 border-primary rounded-md w-full lg:w-1/4 p-4 shadow-lg">
-            <p>Nuevos</p>
-            <section class="flex flex-row">
-                <p id="active-chats-amount" class="text-4xl">{{ casesByStatus[CaseStatus.New] }}</p>
-                <p id="active-chats-augment" class="ml-1 mt-4.5 text-green-700 text-xs">+{{ chatIncrease }}%</p>
-            </section>
-        </div>
-        <div class="bg-background border-2 border-primary rounded-md w-full lg:w-1/4 p-4 shadow-lg">
-            <p>Interesados</p>
-            <section>
-                <p class="text-4xl">{{ casesByStatus[CaseStatus.Interested] }}</p>
-            </section>
-        </div>
-        <div class="bg-background border-2 border-primary rounded-md w-full lg:w-1/4 p-4 shadow-lg">
-            <p>Seguimiento</p>
-            <section class="flex flex-row">
-                <p id="closed-amount" class="text-4xl">{{ casesByStatus[CaseStatus.Following] }}</p>
-            </section>
-        </div>
-        <div class="bg-background border-2 border-primary rounded-md w-full lg:w-1/4 p-4 shadow-lg">
-            <p>Urgentes</p>
-            <section class="flex flex-row">
-                <p id="high-priority-amount" class="text-4xl">{{ casesByStatus[CaseStatus.HighPriority] }}</p>
-                <p class="ml-1 mt-4.5 text-red-700 text-xs">urgente</p>
-            </section>
-        </div>
-        <div class="bg-background border-2 border-primary rounded-md w-full lg:w-1/4 p-4 shadow-lg">
-            <p>Reservas</p>
-            <section class="flex flex-row">
-                <p id="closed-amount" class="text-4xl">{{ casesByStatus[CaseStatus.Reserved] }}</p>
-                <p class="ml-1 mt-4.5 text-green-700 md:text-xs">Totales</p>
-            </section>
-        </div>
-        <div class="bg-background border-2 border-primary rounded-md w-full lg:w-1/4 p-4 shadow-lg">
-            <p>Cerrados</p>
-            <section class="flex flex-row">
-                <p id="closed-amount" class="text-4xl">{{ casesByStatus[CaseStatus.Closed] }}</p>
-                <p class="ml-1 mt-4.5 md:text-xs">Historico</p>
-            </section>
+    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 w-full">
+        <div
+            v-for="card in cards"
+            :key="card.label"
+            class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+        >
+            <!-- Barra de color superior -->
+            <div :class="`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.accent} rounded-t-2xl`"></div>
+
+            <p class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">{{ card.label }}</p>
+
+            <div class="flex items-end gap-2">
+                <p class="text-4xl font-primary text-primary leading-none">{{ casesByStatus[card.status] }}</p>
+                <p v-if="card.badgeLabel" :class="`text-[11px] font-semibold mb-0.5 ${card.badge}`">{{ card.badgeLabel }}</p>
+            </div>
         </div>
     </div>
 </template>

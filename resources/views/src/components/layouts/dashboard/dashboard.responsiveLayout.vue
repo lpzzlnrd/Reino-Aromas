@@ -1,6 +1,7 @@
 <script setup lang="ts">
     import { ref } from 'vue'
-    import { useRoute, useRouter } from 'vue-router'
+    import { useRouter } from 'vue-router'
+    import { useAuth } from '@/composables/useAuth'
 
     import Logo from '../../logo.vue'
     import Plus from '../../icons/icon.plus.vue'
@@ -13,196 +14,126 @@
     import Close from '../../icons/icon.close.vue'
     import Bars from '../../icons/icon.bars.vue'
 
-    const route = useRoute()
     const router = useRouter()
-
-    const baseBtn = 'text-left border-primary rounded-md my-0 px-4 py-2 w-40 max-w-40 transition'
-    const inactiveBtn = 'text-txt hover:cursor-pointer hover:bg-primary hover:text-secondary'
-    const activeBtn = 'text-primary border-r-4 bg-accent'
-
-    const isActive = (name: string | string[]) => {
-        const current = route.name as string | undefined
-        if (!current) return false
-        if (Array.isArray(name)) return name.includes(current)
-        return current === name
-    }
-
-    const buttonClass = (name: string | string[]) => `${baseBtn} ${isActive(name) ? activeBtn : inactiveBtn}`
-
-    const goTo = (name: string) => {
-        router.push({ name })
-    }
+    const { user, logout } = useAuth()
 
     const open = ref(false)
     const close = () => (open.value = false)
     const toggle = () => (open.value = !open.value)
+
+    const goTo = (name: string) => { router.push({ name }); close() }
 </script>
 
 <template>
-    <div class="min-h-screen bg-linear-to-b from-primary via-secondary to-background flex flex-col lg:flex-row">
-        <!-- Mobile Header -->
-        <header class="md:hidden items-center justify-between p-3 bg-background border-b-2 border-primary flex">
-            <button @click="toggle" aria-label="Abrir menú" class="p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
-                <Bars class="text-primary text-xl" />
+    <div class="min-h-screen mesh-bg flex flex-col lg:flex-row font-secondary">
+
+        <!-- Header móvil -->
+        <header class="md:hidden sticky top-0 z-50 flex items-center justify-between px-4 py-3
+                        bg-white/80 backdrop-blur-md border-b border-primary/8 shadow-sm">
+            <button @click="toggle" aria-label="Abrir menú"
+                    class="p-2 rounded-xl bg-accent/30 text-primary hover:bg-accent transition-colors">
+                <Bars />
             </button>
-            <Logo class="w-28" />
-            <button id="new-sell-btn" class="font-txt text-txt border-2 border-primary hover:bg-accent-hover hover:text-secondary px-3 py-1 rounded-lg flex items-center">
-                <Plus />
-                <span class="ml-2">Nueva Venta</span>
+            <Logo class="h-8" />
+            <button class="btn-primary px-3 py-2 text-xs shadow-sm">
+                <Plus class="text-sm" />
+                <span>Venta</span>
             </button>
         </header>
 
-        <!-- Menu -->
-        <div id="dashboard-menu">
-            <!-- Desktop Menu -->
-            <div id="dashboard-desktop-menu" class="hidden md:flex bg-background h-full border-r-4 border-primary rounded-tr-2xl rounded-br-2xl w-54 flex-col">
-                <!-- Desktop Menu Header -->
-                <div id="dashboard-menu-header" class='mt-4 gap-2 flex flex-col items-center justify-center'>
-                    <Logo class="w-30" />
-                    <p class="text-primary font-primary text-xl">Reino Aromas</p>
-                    <button id="new-sell-btn" class="font-txt text-txt border-2 border-secondary hover:border-subtitle hover:bg-primary hover:border-primary hover:text-secondary px-4 py-1 w-40 rounded-lg flex flex-row">
-                        <plus />
-                        <p>Nueva Venta</p>
-                    </button>
+        <!-- Sidebar desktop -->
+        <aside class="hidden md:flex glass-sidebar h-screen w-60 flex-col sticky top-0 px-3 py-6 shrink-0 z-40">
+
+            <!-- Logo + nombre -->
+            <div class="mb-8 px-2 flex flex-col items-center gap-2 text-center">
+                <Logo class="w-24 drop-shadow-sm" />
+                <div>
+                    <p class="text-primary font-primary text-lg tracking-tight leading-tight">Reino Aromas</p>
+                    <p class="text-[9px] text-secondary font-bold uppercase tracking-[0.2em] opacity-70">Gourmet & Artesanal</p>
                 </div>
+            </div>
 
-                <hr class="text-secondary bg-secondary p-0.5 my-20 ml-3 w-48 min-w-30 rounded-full">
+            <!-- Acción rápida -->
+            <div class="px-2 mb-6">
+                <button class="btn-primary w-full shadow-md shadow-secondary/20 group text-sm py-2.5">
+                    <Plus class="group-hover:rotate-90 transition-transform duration-200" />
+                    <span>Nueva Venta</span>
+                </button>
+            </div>
 
-                <!-- Desktop Main Pages -->
-                <div id="pages-div">
-                    <div class='font-secondary gap-2 flex flex-col items-center justify-center'>
-                        <button id="home-btn" :class="buttonClass('Dashboard Home')" type:toggle @click="goTo('Dashboard Home')">
-                            <Home />
-                            Home
-                        </button>
-                        <button id="chats-btn" :class="buttonClass('Messages Home')" type:toggle @click="goTo('Messages Home')">
-                            <Message />
-                            Chats
-                        </button>
-                        <button id="users-btn" type:toggle class="
-                            text-txt text-left
-                            border-primary rounded-md
-                            my-0 px-4 py-2 w-40 max-w-40 transition
-                            focus:text-primary focus:border-r-4  focus:bg-accent
-                            hover:cursor-pointer hover:bg-primary hover:text-secondary
-                            focus:hover:text-secondary focus:hover:border-secondary
-                        ">
-                           <Users />
-                            Usuarios
-                        </button>
-                        <button id="reports-btn" type:toggle class="
-                            text-txt text-left
-                            border-primary rounded-md
-                            my-0 px-4 py-2 w-40 max-w-40 transition
-                            focus:text-primary focus:border-r-4  focus:bg-accent
-                            hover:cursor-pointer hover:bg-primary hover:text-secondary
-                            focus:hover:text-secondary focus:hover:border-secondary
-                        ">
-                            <Chart />
-                            Reportes
-                        </button>
+            <!-- Navegación principal -->
+            <nav class="flex flex-col gap-0.5 flex-1 overflow-y-auto">
+                <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Principal</p>
+                <button class="nav-item" @click="goTo('Dashboard Home')"><Home /><span>Dashboard</span></button>
+                <button class="nav-item" @click="goTo('Messages Home')"><Message /><span>Mensajería</span></button>
+                <button class="nav-item" @click="goTo('Dashboard Home')"><Users /><span>Clientes</span></button>
+                <button class="nav-item" @click="goTo('Dashboard Home')"><Chart /><span>Reportes</span></button>
+            </nav>
+
+            <!-- Sistema -->
+            <nav class="flex flex-col gap-0.5 mt-auto pt-4 border-t border-primary/8">
+                <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Sistema</p>
+                <button class="nav-item" @click="goTo('Accounts')"><User /><span>Mi Perfil</span></button>
+                <button class="nav-item" @click="goTo('Accounts')"><Gear /><span>Ajustes</span></button>
+
+                <!-- Usuario logueado -->
+                <div v-if="user" class="mt-3 mx-1 px-3 py-2.5 rounded-xl bg-primary/5 border border-primary/8 flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {{ user.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold text-primary truncate">{{ user.name }}</p>
+                        <p class="text-[10px] text-primary/50 capitalize">{{ user.role }}</p>
                     </div>
                 </div>
 
-                <hr class="text-secondary bg-secondary p-0.5 my-20 ml-3 w-48 min-w-30 rounded-full">
+                <button @click="logout"
+                        class="nav-item text-red-400 hover:bg-red-50 hover:text-red-600 mt-1">
+                    <span>↩</span><span>Cerrar sesión</span>
+                </button>
+            </nav>
+        </aside>
 
-                <!-- Desktop Options & User Pages -->
-                <div id="options-div" class="font-secondary p-4">
-                    <footer class="gap-2 flex flex-col text-left items-center justify-center">
-                        <button id="profile-btn" type:toggle class="
-                            text-txt text-left
-                            border-primary rounded-md
-                            my-0 px-4 py-2 w-40 max-w-40 transition
-                            focus:text-primary focus:border-r-4  focus:bg-accent
-                            hover:cursor-pointer hover:bg-primary hover:text-secondary
-                            focus:hover:text-secondary focus:hover:border-secondary
-                        ">
-                            <User />
-                            Perfil
+        <!-- Menú móvil overlay -->
+        <transition name="slide">
+            <div v-if="open" class="fixed inset-0 z-50 flex md:hidden">
+                <div class="w-72 bg-white/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6">
+                    <header class="flex items-center justify-between mb-8">
+                        <Logo class="w-20" />
+                        <button @click="close" aria-label="Cerrar menú"
+                                class="p-2 rounded-full bg-accent/20 text-primary hover:bg-accent transition-colors">
+                            <Close />
                         </button>
-                        <button id="settings-btn" :class="buttonClass('Dashboard Settings')" type:toggle @click="goTo('Dashboard Settings')">
-                            <Gear />
-                            Ajustes
-                        </button>
+                    </header>
+                    <nav class="flex flex-col gap-1 flex-1">
+                        <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Home /><span>Dashboard</span></button>
+                        <button @click="goTo('Messages Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Message /><span>Mensajería</span></button>
+                        <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
+                        <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Chart /><span>Reportes</span></button>
+                    </nav>
+                    <footer v-if="user" class="mt-auto border-t border-primary/10 pt-4 flex items-center gap-2 p-2">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold">
+                            {{ user.name.charAt(0).toUpperCase() }}
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-primary">{{ user.name }}</p>
+                            <p class="text-xs text-primary/50 capitalize">{{ user.role }}</p>
+                        </div>
                     </footer>
                 </div>
+                <div class="flex-1 bg-primary/20 backdrop-blur-sm" @click="close"></div>
             </div>
+        </transition>
 
-            <!-- Mobile Menu -->
-            <div id="dashboard-mobile-menu">
-                <transition name="slide">
-                    <div v-if="open" class="fixed inset-0 z-40 flex md:hidden">
-                        <div class="w-64 bg-background border-r-2 border-primary p-4 overflow-y-auto">
-                            <!-- Mobile Menu Header -->
-                            <header class="flex flex-col">
-                                <section class="flex flex-row justify-between">
-                                    <Logo class="w-24" />
-                                    <button @click="close()" aria-label="Cerrar menú" class="p-2">
-                                        <Close class="text-primary text-xl" />
-                                    </button>
-                                </section>
-                                <p class="title text-2xl">Reino Aromas</p>
-                            </header>
-
-                            <hr class="text-secondary bg-secondary p-0.5 my-32 rounded-full">
-
-                            <!-- Mobile Main Pages -->
-                            <div>
-                                <button @click="goTo('Dashboard Home'); close()" :class="buttonClass('Dashboard Home')">
-                                    <Home />
-                                    Home
-                                </button>
-                                <button @click="goTo('Messages Home'); close()" :class="buttonClass('Messages Home')">
-                                    <Message />
-                                    Chats
-                                </button>
-                                <button @click="close()" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
-                                    <Users />
-                                    Usuarios
-                                </button>
-                                <button @click="close()" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
-                                    <Chart />
-                                    Reportes
-                                </button>
-                            </div>
-
-                            <hr class="text-secondary bg-secondary p-0.5 my-32 rounded-full">
-
-                            <!-- Mobile Options & User Pages -->
-                            <div>
-                                <button @click="close()" class="w-full text-left text-txt px-4 py-2 rounded-md flex items-center gap-2">
-                                    <User />
-                                    Perfil
-                                </button>
-                                <button @click="goTo('Dashboard Settings'); close()" :class="buttonClass('Dashboard Settings')">
-                                    <Gear />
-                                    Ajustes
-                                </button>
-                            </div>
-                        </div>
-                        <section class="flex-1 bg-black bg-opacity-30" @click="close()"></section>
-                    </div>
-                </transition>
-            </div>
-        </div>
-        <router-view />
+        <!-- Contenido principal -->
+        <main class="flex-1 min-w-0 overflow-y-auto">
+            <router-view />
+        </main>
     </div>
 </template>
 
 <style scoped>
-    .slide-enter-active, .slide-leave-active {
-    transition: transform 0.2s ease;
-    }
-    .slide-enter-from {
-    transform: translateX(-100%);
-    }
-    .slide-enter-to {
-    transform: translateX(0);
-    }
-    .slide-leave-from {
-    transform: translateX(0);
-    }
-    .slide-leave-to {
-    transform: translateX(-100%);
-    }
+.slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.slide-enter-from, .slide-leave-to { transform: translateX(-100%); }
+.slide-enter-to, .slide-leave-from { transform: translateX(0); }
 </style>

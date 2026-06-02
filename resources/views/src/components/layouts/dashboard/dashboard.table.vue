@@ -1,8 +1,6 @@
 <script setup lang="ts">
-    import { CaseStatus, useCaseStatus } from '@/hooks/caseStatus.ts';
-
+    import { CaseStatus } from '@/hooks/caseStatus.ts';
     import User from '../../icons/icon.user.vue'
-
     import DataTable from 'datatables.net-vue3';
     import DataTablesCore from 'datatables.net-dt';
     import 'datatables.net-fixedheader-dt';
@@ -10,88 +8,57 @@
 
     DataTable.use(DataTablesCore)
 
-    // Delete this in case of using Ajax Data
     const data = [
-        {
-            client: 'Nombre cliente',
-            id: '#RE-0000',
-            problem: 'Problema del cliente',
-            wait: '0 min',
-            assigned: 'Agente asignado',
-            status: CaseStatus.HighPriority
-        },
+        { client: 'Nombre cliente', id: '#RE-0000', problem: 'Problema del cliente', wait: '0 min', assigned: 'Agente asignado', status: CaseStatus.HighPriority },
     ]
 
     const columns = [
-        { data: 'client', title: 'Cliente', render: '#client' },
+        { data: 'client',  title: 'Cliente',           render: '#client' },
         { data: 'problem', title: 'Problema' },
-        { data: 'wait', title: 'Tiempo de espera' },
-        { data: 'assigned', title: 'Asignado', render: '#assigned' },
-        { data: null, title: 'Acción', render: '#action' },
+        { data: 'wait',    title: 'Espera' },
+        { data: 'assigned',title: 'Asignado',           render: '#assigned' },
+        { data: null,      title: 'Acción',             render: '#action' },
     ]
 </script>
 
 <template>
-    <div class="scroll overflow-x-auto">
-        <!-- Ajax Data Import Example -->
-        <!--
-            <DataTable
-                :columns="columns"
-                ajax="/data.json"
-                class="display"
-            />
-         -->
+    <div class="overflow-x-auto">
         <DataTable
             id="urgent-table"
             :data="data"
             :columns="columns"
-            :options="{
-                paging: false,
-                searching: false,
-                info: false,
-                ordering: false,
-                responsive: false,
-            }"
+            :options="{ paging: false, searching: false, info: false, ordering: false, responsive: false }"
+            class="w-full"
         >
-            <!-- Client Column -->
             <template #client="{ rowData }">
-                <div id="cell-client" class="flex flex-row items-center gap-2">
-                    <section id="avatar">
-                        <User id="user-avatar" />
-                    </section>
-                    <div id="client-meta">
-                        <section id="client-name" class="font-secondary">{{ rowData.client }}</section>
-                        <section id="client-id" class="font-secondary">{{ rowData.id }}</section>
+                <div class="flex items-center gap-3 py-1">
+                    <div class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-primary shrink-0">
+                        <User class="text-lg translate-y-0.5" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-primary leading-tight">{{ rowData.client }}</p>
+                        <p class="text-[11px] text-primary/40 font-mono">{{ rowData.id }}</p>
                     </div>
                 </div>
             </template>
 
-            <!-- Agent Assigned Column -->
             <template #assigned="{ rowData }">
-                <div id="cell-assigned" class="flex flex-row gap-1">
-                    <div id="assigned-avatar">
-                        <img v-if="rowData.assignedAvatar" :src="rowData.assignedAvatar" class="rounded-full w-6 h-6" />
-                        <div v-else class="rounded-full w-6 h-6 bg-accent flex items-center justify-center txt-small">
-                            {{ rowData.assigned ? rowData.assigned.charAt(0) : '' }}
-                        </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-secondary/30 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                        {{ rowData.assigned ? rowData.assigned.charAt(0).toUpperCase() : '?' }}
                     </div>
-                    <div class="assigned-name txt-small">
-                        {{ rowData.assigned || 'Sin asignar' }}
-                    </div>
+                    <span class="text-sm text-primary/70">{{ rowData.assigned || 'Sin asignar' }}</span>
                 </div>
             </template>
 
-            <!-- Action/Status Column -->
             <template #action="{ rowData }">
-                <div class="cell-action">
-                    <button id="btn-attend" class="py-2 px-4 border-2 border-secondary bg-background hover:cursor-pointer hover:bg-primary hover:border-primary hover:text-secondary rounded-2xl" @click="$emit('attend', rowData)">
-                        ATENDER
-                    </button>
-                </div>
+                <button
+                    class="text-[11px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-lg border-2 border-secondary text-primary hover:bg-primary hover:border-primary hover:text-white transition-all cursor-pointer"
+                    @click="$emit('attend', rowData)"
+                >
+                    Atender
+                </button>
             </template>
         </DataTable>
     </div>
 </template>
-
-<style>
-</style>

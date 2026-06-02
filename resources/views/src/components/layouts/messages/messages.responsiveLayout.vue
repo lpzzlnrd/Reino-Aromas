@@ -21,114 +21,89 @@
         location: string
     }
 
-    const { statuses, casesByStatus, total } = useCaseStatus()
+    const { statuses, casesByStatus } = useCaseStatus()
     const selectedChat = ref<Chat | null>(null)
     const selectedStatus = ref<CaseStatus | null>(null)
 
-    const baseStatusStyle = 'bg-primary/10 backdrop-blur-lg backdrop-saturate-150 whitespace-nowrap border border-white/20 shadow-sm text-sm px-3 py-1 rounded-full transition hover:shadow-md hover:bg-primary hover:text-secondary focus:bg-accent focus:text-primary'
-
-    const statusClassMap: Record<CaseStatus, string> = {
-        [CaseStatus.New]: 'text-green-600',
-        [CaseStatus.Interested]: 'text-txt',
-        [CaseStatus.HighPriority]: 'text-red-600',
-        [CaseStatus.Following]: 'text-cyan-500',
-        [CaseStatus.Reserved]: 'text-fuchsia',
-        [CaseStatus.Closed]: 'text-mauve-600',
-    }
-
-    const selectedStatusClass = 'bg-primary text-secondary border-primary shadow-md'
-
     const chats = ref<Chat[]>([
-        { id: 1, username: 'Ana', lastMessage: 'Hola', messageTime: '10:20am', location: 'Caracas, Venezuela' },
-        { id: 2, username: 'Luis', lastMessage: 'Esta disponible?', messageTime: '2:04pm', location: 'Barquisimeto, Valencia' },
-        { id: 3, username: 'Carlos', lastMessage: 'Buenas, precio del curso', messageTime: '11:00am', location: 'Valencia, Venezuela' }
+        { id: 1, username: 'Ana',    lastMessage: 'Hola',                  messageTime: '10:20am', location: 'Caracas, Venezuela'         },
+        { id: 2, username: 'Luis',   lastMessage: '¿Está disponible?',     messageTime: '2:04pm',  location: 'Barquisimeto, Venezuela'    },
+        { id: 3, username: 'Carlos', lastMessage: 'Buenos días, precio del curso', messageTime: '11:00am', location: 'Valencia, Venezuela' },
     ])
 
-    const openChat = (chat: Chat) => {
-        selectedChat.value = chat
-    }
+    const openChat = (chat: Chat) => { selectedChat.value = chat }
 
-    // Carga la informacion relevante del usuario y lo carga mediante un v-for
     const pfp = ref()
     const messageStatus = ref(MessageStatus.Sent)
-
     const open = ref(false)
     const close = () => (open.value = false)
     const toggle = () => (open.value = !open.value)
 </script>
 
 <template>
-    <div id="messages-desktop-menu" class="hidden md:flex md:w-1/5 md:flex-none md:min-w-0">
-        <!-- Desktop Menu -->
-        <transition name="slide">
-            <div class="w-full min-w-0 bg-background h-full border-r-4 border-primary overflow-hidden">
-                <header id="desktop-chats-filter" class="txt gap-2 flex flex-col p-1">
-                    <section class="
-                            group border-2 border-secondary rounded-xl
-                            text-sm p-1 mt-1 gap-0.5
-                            focus-within:border-secondary focus-within:bg-contrast
-                            hover:border-accent-hover
-                            flex flex-row
-                        ">
-                        <Search class="mt-1 text-txt group-hover:text-accent-hover"/>
-                        <input id="search-bar" class="focus:outline-none" type="text">
-                    </section>
-                    <section class="scroll overflow-x-auto flex flex-row p-2 mr-0.5 gap-1.5">
-                        <button
-                            :class="[baseStatusStyle, selectedStatus === value ? selectedStatusClass : statusClassMap[value]]"
-                            style="
-                                backdrop-filter: blur(8px);
-                                -webkit-backdrop-filter: blur(8px);
-                            "
-                            @click="selectedStatus = value"
-                            type="button"
-                            v-for="value in statuses"
-                            :key="value"
-                        >
-                            {{ value }} {{ casesByStatus[value] }}
-                        </button>
-                    </section>
-                </header>
-                <div id="desktop-chats" class="p-1">
-                    <!-- Se cargaran los datos de los chats de la base de datos con un v-for -->
-                    <div class="txt transition group
-                        p-2 rounded-md
-                        flex flex-col"
-                        v-for="chat in chats"
-                        :key="chat.id"
-                        :class="selectedChat?.id === chat.id ? 'bg-accent border-r-4 border-primary' : 'hover:bg-primary'"
-                        @click="openChat(chat)"
-                    >
-                        <div class="flex flex-row justify-between">
-                            <section class="font-primary text-primary group gap-2 flex flex-row">
-                                <p :class="selectedChat?.id === chat.id ? 'text-primary' : 'group-hover:text-secondary'" v-if="pfp === undefined">
-                                    <User />
-                                </p>
-                                <p v-else>
-                                    {{ pfp }}
-                                </p>
-                                <p :class="selectedChat?.id === chat.id ? 'text-primary' : 'group-hover:text-secondary'">{{ chat.username }}</p>
-                            </section>
-                            <p :class="selectedChat?.id === chat.id ? 'text-xs' : 'text-xs group-hover:text-accent-hover'">{{ chat.messageTime }}</p>
-                        </div>
-                        <section class="group gap-2 flex flex-row">
-                            <p v-if="messageStatus == MessageStatus.Sent">
-                                <Check class="text-gray-700"/>
-                            </p>
-                            <p v-else-if="messageStatus == MessageStatus.Delivered">
-                                <DoubleCheck class="text-gray-700"/>
-                            </p>
-                            <p v-else-if="messageStatus == MessageStatus.Viewed">
-                                <DoubleCheck class="text-sky-700"/>
-                            </p>
-                            <p :class="selectedChat?.id === chat.id ? '' : 'group-hover:text-accent-hover'">{{ chat.lastMessage }}</p>
-                        </section>
+    <!-- Panel lateral de chats -->
+    <div class="hidden md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60">
+
+        <!-- Buscador y filtros -->
+        <div class="p-3 border-b border-primary/8 flex flex-col gap-2">
+            <label class="input-group group cursor-text">
+                <Search class="text-primary/40 group-focus-within:text-primary/70 shrink-0 transition-colors" />
+                <input id="search-bar" class="focus:outline-none bg-transparent text-sm w-full placeholder:text-primary/30" type="text" placeholder="Buscar conversación...">
+            </label>
+
+            <!-- Filtros por status -->
+            <div class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                    v-for="value in statuses"
+                    :key="value"
+                    @click="selectedStatus = selectedStatus === value ? null : value"
+                    :class="[
+                        'text-[10px] font-bold uppercase tracking-widest whitespace-nowrap px-2.5 py-1 rounded-full border transition-all',
+                        selectedStatus === value
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-white/50 text-primary/60 border-primary/15 hover:border-primary/40 hover:text-primary/80'
+                    ]"
+                >
+                    {{ value }} <span class="opacity-60">{{ casesByStatus[value] }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Lista de chats -->
+        <div class="flex-1 overflow-y-auto">
+            <button
+                v-for="chat in chats"
+                :key="chat.id"
+                @click="openChat(chat)"
+                :class="[
+                    'w-full text-left px-4 py-3 flex items-start gap-3 border-b border-primary/5 transition-all',
+                    selectedChat?.id === chat.id
+                        ? 'bg-accent/40 border-l-4 border-l-primary'
+                        : 'hover:bg-white/70'
+                ]"
+            >
+                <!-- Avatar -->
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-secondary/40 to-accent/60 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                    <User v-if="pfp === undefined" class="text-lg translate-y-0.5" />
+                </div>
+
+                <!-- Info -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between items-center mb-0.5">
+                        <span class="text-sm font-semibold text-primary truncate">{{ chat.username }}</span>
+                        <span class="text-[10px] text-primary/40 shrink-0 ml-1">{{ chat.messageTime }}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <Check v-if="messageStatus === MessageStatus.Sent" class="text-primary/30 text-xs shrink-0" />
+                        <DoubleCheck v-else-if="messageStatus === MessageStatus.Delivered" class="text-primary/30 text-xs shrink-0" />
+                        <DoubleCheck v-else-if="messageStatus === MessageStatus.Viewed" class="text-sky-500 text-xs shrink-0" />
+                        <span class="text-xs text-primary/50 truncate">{{ chat.lastMessage }}</span>
                     </div>
                 </div>
-            </div>
-        </transition>
-
-        <!-- Mobile Menu -->
+            </button>
+        </div>
     </div>
-    <router-view :selected-chat="selectedChat" />
+
+    <!-- Vista del chat seleccionado -->
+    <router-view :selected-chat="selectedChat" class="flex-1 min-w-0" />
 </template>

@@ -4,16 +4,16 @@
 </script>
 
 <template>
-    <div class="p-2 w-full h-full">
-        <div id="urgent-div" class="bg-background p-2 border-2 border-primary rounded-md shadow-lg">
-            <header class="flex flex-row justify-between border-b-2 border-secondary p-1">
-                <p class="subtitle">Tickets urgentes</p>
-                <section class="text-red-800 flex flex-row gap-1">
-                    <Alert />
-                    <p>Atención inmediata requerida</p>
-                </section>
-            </header>
-            <DataTable class="my-4" />
+    <div class="glass-card overflow-hidden">
+        <header class="flex items-center justify-between px-6 py-4 border-b border-primary/8">
+            <h2 class="text-xl font-primary text-primary">Tickets urgentes</h2>
+            <span class="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 border border-red-100 px-3 py-1.5 rounded-full">
+                <Alert class="text-sm" />
+                Atención inmediata
+            </span>
+        </header>
+        <div class="p-4">
+            <DataTable />
         </div>
     </div>
 </template>
