@@ -1,53 +1,23 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
     import Header from '../header/header.vue'
     import Relevant_Data from './dashboard.relevant.vue'
-    import Recents from './dashboar.recents.vue'
+    import Recents from './dashboard.recents.vue'
     import Cities from './dashboard.cities.vue'
     import Urgent from './dashboard.urgent.vue'
-
-    const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 </script>
 
 <template>
-    <div class="px-4 lg:px-8 py-6 w-full animate-fade-in overflow-x-hidden">
-        <!-- Unified Header & Search -->
-        <Header class="mb-8" />
-
-        <!-- Welcome Section -->
-        <section class="mb-10 px-2">
-            <h1 class="text-3xl lg:text-4xl font-primary text-primary mb-2">¡Hola de nuevo!</h1>
-            <p class="text-secondary font-medium opacity-80 capitalize">{{ today }}</p>
-        </section>
-
-        <!-- Main Dashboard Grid -->
-        <div id="dashboard-grid" class="grid grid-cols-12 gap-6 lg:gap-8">
-            
-            <!-- KPI Section (Full Width) -->
-            <div class="col-span-12">
-                <Relevant_Data />
-            </div>
-
-            <!-- Middle Section: Activity & Distribution -->
-            <div class="col-span-12 lg:col-span-8">
+    <div class="lg:mx-3.5 mt-2.5 w-full">
+        <div class="p-2 w-full">
+            <Header />
+        </div>
+        <div id="dashboard-div" class="my-1 lg:my-5 flex flex-col">
+            <Relevant_Data />
+            <div class="w-full lg:my-5 gap-1 lg:gap-4 flex flex-col lg:flex-row">
                 <Recents />
-            </div>
-
-            <div class="col-span-12 lg:col-span-4">
                 <Cities />
             </div>
-
-            <!-- Bottom Section: Urgent Tasks -->
-            <div class="col-span-12">
-                <Urgent />
-            </div>
-
+            <Urgent />
         </div>
     </div>
 </template>
-
-<style scoped>
-    /* Prevent horizontal overflow issues with blur effects */
-    #dashboard-grid {
-        contain: layout;
-    }
-</style>

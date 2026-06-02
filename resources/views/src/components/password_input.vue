@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
     import { ref } from 'vue'
     import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
     import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
@@ -11,12 +11,12 @@
 </script>
 
 <template>
-    <label for="password_input" class="block text-xs font-bold text-primary/60 uppercase tracking-widest mb-2 ml-1">Contraseña</label>
-    <section class="input-group">
-        <Lock class="text-primary opacity-40"/>
-        <input id="password_input" :type="showPassword ? 'text' : 'password'" placeholder="••••••••" required>
-        <button type="button" @click="togglePassword" class="text-primary opacity-40 hover:opacity-100 transition-opacity cursor-pointer px-1">
-            <FontAwesomeIcon :icon="showPassword ? faEyeSlash : faEye" />
+    <label for="password-input" class="text-secondary">CONTRASEÑA</label>
+    <section class="group w-full mt-1 p-1 gap-1 border-2 border-secondary focus-within:border-accent hover:border-accent-hover flex flex-row rounded-xl">
+        <Lock class="group-hover:text-accent-hover"/>
+        <input id="password_input" class='focus:outline-none w-full' :type="showPassword ? 'text' : 'password'" placeholder="12345678" required>
+        <button type="button" @click="togglePassword" class="text-txt group">
+            <FontAwesomeIcon class="mt-1 hover:cursor-pointer group-hover:text-accent-hover" :icon="showPassword ? faEyeSlash : faEye" />
         </button>
     </section>
 </template>

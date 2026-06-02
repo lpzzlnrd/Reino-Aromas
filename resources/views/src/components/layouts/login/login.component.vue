@@ -1,45 +1,44 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
+    import { useRouter } from 'vue-router'
+
     import At from '../../icons/icon.at.vue'
     import password_input from '../../password_input.vue';
+
+    const router = useRouter()
+
+    const goTo = (name: string) =>{
+        router.push({ name })
+    }
 </script>
 
 <template>
-    <div id="login-div" class="glass-card w-full p-8 lg:p-12 shadow-2xl">
-        <div class="mb-10">
-            <h2 class="text-2xl font-primary text-primary mb-2">Bienvenido</h2>
-            <p class="text-xs font-bold text-secondary uppercase tracking-widest opacity-60">Ingresa tus credenciales</p>
-        </div>
-
-        <form id="login-form" class="space-y-6" @submit.prevent>
-            <div>
-                <label class="block text-xs font-bold text-primary/60 uppercase tracking-widest mb-2 ml-1" for="email-input">Correo Electrónico</label>
-                <div class="input-group">
-                    <At class="text-primary opacity-40" />
-                    <input id="email-input" type="email" placeholder="admin@reinoaromas.com" required>
-                </div>
-            </div>
-
-            <div>
-                <password_input />
-            </div>
-
-            <div class="flex items-center justify-between px-1">
-                <label class="flex items-center gap-2 cursor-pointer group">
-                    <input class="appearance-none h-4 w-4 border-2 border-primary/20 rounded bg-white/50 checked:bg-primary checked:border-primary transition-all cursor-pointer" type="checkbox" name="remember" id="remember">
-                    <span class="text-xs font-medium text-primary/60 group-hover:text-primary transition-colors">Recordarme</span>
-                </label>
-                <a href="#" class="text-xs font-bold text-secondary uppercase tracking-widest hover:text-accent-hover transition-colors">¿Olvidaste tu clave?</a>
-            </div>
-
-            <div class="pt-4">
-                <button id="login-btn" class="btn-primary w-full py-4 text-sm tracking-widest uppercase font-bold shadow-xl shadow-secondary/20">
-                    Iniciar Sesión
-                </button>
-            </div>
+    <div id="login-div" class="txt
+      bg-background border-2 border-primary px-6 py-12 mx-2
+        sm:mx-28
+        md:mx-50
+        lg:mx-80
+        xl:mx-110
+        flex items-center justify-center rounded-3xl">
+        <form id="login-form" class="txt w-full" action="submit">
+            <label class="mt-4 text-secondary" for="email-input">EMAIL</label>
+            <section class="group w-full mt-1 mb-3 p-1 gap-1 border-2 border-secondary focus-within:border-accent hover:border-accent-hover flex flex-row rounded-xl">
+                <At class="group-hover:text-accent-hover" />
+                <input id="email-input" class='focus:outline-none w-full' type="email" placeholder="nombre@reinoaromas.com" required>
+            </section>
+            <password_input />
+            <section class="mt-4 flex flex-row">
+                <input class="appearance-none h-5 w-5
+                    border-2 border-secondary rounded-md
+                    hover:cursor-pointer hover:bg-accent-hover
+                    checked:border-secondary checked:bg-accent
+                    focus:outline-accent-hover"
+                    type="checkbox" name="remember" id="remember">
+                <span class="ml-1 text-secondary">Recordarme</span>
+            </section>
+            <hr class="my-4 text-secondary">
+            <section class="flex items-center justify-center">
+                <button @click="goTo('Dashboard Home')" id="login-btn" class="border-2 border-primary bg-accent hover:bg-primary hover:text-secondary w-50 p-2 rounded-2xl">Iniciar Sesion</button>
+            </section>
         </form>
-
-        <div class="mt-10 text-center">
-            <p class="text-[10px] text-primary/40 font-bold uppercase tracking-[0.2em]">Reino Aromas v2.0</p>
-        </div>
     </div>
 </template>

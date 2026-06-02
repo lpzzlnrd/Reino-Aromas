@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
     import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
     import { faGear } from '@fortawesome/free-solid-svg-icons';
 </script>

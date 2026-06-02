@@ -1,25 +1,34 @@
-﻿<script setup lang="ts">
-    import { ref } from 'vue';
+<script setup lang="ts">
+    import { ref, computed } from 'vue';
+    import { useRoute } from 'vue-router';
 
     import Search from '../../icons/icon.search.vue'
     import Bell from '../../icons/icon.bell.vue'
     import Info from '../../icons/icon.info.vue'
 
-    // const pageName = ref()
+    const route = useRoute()
+
+    // Cambia el nombre de la pagina automaticamente
+    const pageName = computed(() => {
+        return (route.meta.title as string)
+    })
 </script>
 
 <template>
-    <header class="subtitle py-4 flex flex-row justify-between items-center">
-        <p class="text-lg font-medium">Panel de control</p>
-        <div class="flex flex-row gap-3 lg:gap-5 items-center">
-            <section id="search-section" class="input-group w-48 lg:w-64">
-                <Search class="text-primary opacity-60 group-focus-within:opacity-100 transition-opacity"/>
-                <input id="search-bar" type="text" placeholder="Buscar...">
+    <header class="subtitle h-7 flex flex-row justify-between">
+        <p class="p-1">{{ pageName }}</p>
+        <div class="flex flex-row gap-2 lg:gap-3.5">
+            <section id="search-section"
+                class="group border-2 p-1 border-title rounded-xl flex flex-row
+                focus-within:border-secondary focus-within:bg-contrast
+                hover:border-accent-hover ">
+                <Search class="group-hover:text-accent-hover"/>
+                <input id="search-bar" class="focus:outline-none" type="text">
             </section>
-            <button id="notifications-btn" class="text-primary opacity-70 hover:opacity-100 hover:scale-110 transition-all cursor-pointer" type="button">
+            <button id="notifications-btn" class="hover:cursor-pointer hover:text-accent-hover" type="button">
                 <Bell />
             </button>
-            <button id="info-btn" class="text-primary opacity-70 hover:opacity-100 hover:scale-110 transition-all cursor-pointer" type="button">
+            <button id="info-btn" class="hover:cursor-pointer hover:text-accent-hover" type="button">
                 <Info />
             </button>
         </div>
