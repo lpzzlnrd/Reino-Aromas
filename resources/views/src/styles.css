@@ -1,7 +1,8 @@
-@import 'tailwindcss';
+/* Los @import de terceros deben preceder a @import tailwindcss (regla CSS) */
 @import url('datatables.net-dt');
 @import url('datatables.net-fixedheader-dt');
 @import url('datatables.net-responsive-dt');
+@import 'tailwindcss';
 
 @font-face {
     font-family: 'Poppins-Regular';
