@@ -13,6 +13,7 @@
         "@fortawesome/free-brands-svg-icons": "^7.2.0",
         "@fortawesome/free-solid-svg-icons": "^7.2.0",
         "@fortawesome/vue-fontawesome": "^3.2.0",
+        "axios": "^1.16.1",
         "datatables.net-dt": "^2.3.8",
         "datatables.net-fixedheader-dt": "^4.0.6",
         "datatables.net-responsive-dt": "^3.0.8",
