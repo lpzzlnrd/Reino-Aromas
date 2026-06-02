@@ -1,19 +1,40 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Http\Controllers\Api\Webhooks\InstagramWebhookController;
 use App\Http\Controllers\Api\Webhooks\WhatsAppWebhookController;
+use App\Http\Controllers\Facebook\FacebookAuthController;
+use App\Http\Controllers\Facebook\FacebookMessageController;
+use App\Http\Controllers\Facebook\FacebookPostController;
+use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
-|--------------------------------------------------------------------------
+|=============================================================================
+| API Routes — Reino Aromas CRM
+|
+| Convención de respuesta (heredada de MetaBaseController):
+|   éxito  → { "status": true,  ...datos }
+|   error  → { "status": false, "message": "..." }
+|
+| Autenticación: cookie de sesión Laravel (Sanctum stateful).
+| El Vue envía el header X-XSRF-TOKEN que axios lee del cookie automáticamente.
+| No se usan tokens Bearer.
+|=============================================================================
+*/
+
+/*
+|-----------------------------------------------------------------------------
 | Webhooks Meta — SIN autenticación
 |
-| Meta firma cada request con HMAC-SHA256 usando META_APP_SECRET.
-| La verificación ocurre dentro de cada controller, no a nivel de middleware.
-|--------------------------------------------------------------------------
+| Meta firma cada request con HMAC-SHA256 (X-Hub-Signature-256).
+| La verificación ocurre dentro de cada controller.
+| Estos endpoints deben ser accesibles públicamente para que Meta los alcance.
+|-----------------------------------------------------------------------------
 */
-Route::prefix('webhooks')->group(function () {
+Route::prefix('webhooks')->group(function (): void {
 
     Route::get('instagram', [InstagramWebhookController::class, 'verify'])
         ->name('webhooks.instagram.verify');
@@ -30,36 +51,225 @@ Route::prefix('webhooks')->group(function () {
 });
 
 /*
-|--------------------------------------------------------------------------
-| API autenticada — requiere sesión web (auth:sanctum + cookie session)
-|
-| El Vue usa las mismas cookies de sesión que el Blade login.
-| No se usan tokens Bearer — auth:sanctum con 'stateful' domains es suficiente
-| para una SPA en el mismo dominio.
-|--------------------------------------------------------------------------
+|-----------------------------------------------------------------------------
+| Rutas autenticadas — requieren sesión activa (auth:sanctum stateful)
+|-----------------------------------------------------------------------------
 */
-Route::middleware(['auth:sanctum'])->group(function () {
-
-    // Usuario autenticado actual — el Vue lo llama al montar para saber
-    // el nombre y rol del agente logueado.
-    Route::get('/user', fn(Request $request) => $request->user());
+Route::middleware(['auth:sanctum'])->group(function (): void {
 
     /*
-    |----------------------------------------------------------------------
-    | Meta chats — conversaciones activas de WhatsApp e Instagram
+    |-------------------------------------------------------------------------
+    | Usuario autenticado
+    | GET /api/user
     |
-    | Usado por useMetaData.ts (loadMetaChats → GET /api/meta/chats).
-    | TODO Semana 3: implementar ConversationController y apuntar aquí.
-    |----------------------------------------------------------------------
+    | El Vue lo llama al montar (App.vue o composable de sesión) para saber
+    | el nombre, rol y avatar del agente logueado.
+    | Responde con los campos seguros del modelo User (password y
+    | remember_token están en $hidden).
+    |-------------------------------------------------------------------------
     */
-    Route::prefix('meta')->group(function () {
+    Route::get('/user', fn(Request $request) => response()->json($request->user()))
+        ->name('api.user');
 
-        // Lista de chats/conversaciones activas
+    /*
+    |=========================================================================
+    | Meta — conversaciones y mensajes
+    |
+    | Agrupa los endpoints que el Vue consume para la bandeja de mensajes.
+    | Los canales soportados hoy: facebook, instagram, whatsapp.
+    |=========================================================================
+    */
+    Route::prefix('meta')->name('api.meta.')->group(function (): void {
+
+        /*
+        |---------------------------------------------------------------------
+        | GET /api/meta/chats
+        |
+        | Lista de conversaciones activas (status = 'open') con el último
+        | mensaje de cada una. Usado por useMetaData.ts → loadMetaChats().
+        |
+        | Estructura de cada item (mapeada al tipo MetaApiChat del frontend):
+        |   id            → conversation.id
+        |   contact_name  → contact.display_name
+        |   contact_avatar→ contact.profile_picture_url
+        |   last_message  → último mensaje de la conversación
+        |   message_time  → last_message_at de la conversación
+        |   location      → contact.city
+        |   case_status   → ticket.status (si existe) o 'Nuevo'
+        |   channel       → contact.channel (facebook | instagram | whatsapp)
+        |---------------------------------------------------------------------
+        */
         Route::get('/chats', function () {
-            // Placeholder hasta que ConversationController esté listo (Semana 3).
-            // Retorna un array vacío para que el Vue no rompa al montar.
-            return response()->json([]);
-        })->name('api.meta.chats');
+            $conversations = Conversation::query()
+                ->where('status', 'open')
+                ->with([
+                    'contact',
+                    // Solo el último mensaje para no cargar toda la historia
+                    'messages' => fn($q) => $q->latest('created_at')->limit(1),
+                    'ticket',
+                ])
+                ->orderByDesc('last_message_at')
+                ->get()
+                ->map(fn(Conversation $conv) => [
+                    'id'             => $conv->id,
+                    'contact_name'   => $conv->contact?->display_name ?? 'Sin nombre',
+                    'contact_avatar' => $conv->contact?->profile_picture_url,
+                    'last_message'   => $conv->messages->first()?->body ?? '',
+                    'message_time'   => $conv->last_message_at?->toIso8601String(),
+                    'location'       => $conv->contact?->city,
+                    // El Vue espera uno de los valores del enum CaseStatus.ts
+                    // Mapeamos el status del ticket al valor en español del enum
+                    'case_status'    => match($conv->ticket?->status) {
+                        'interested'   => 'Interesado',
+                        'high_priority'=> 'Urgente',
+                        'following'    => 'En seguimiento',
+                        'reserved'     => 'Reservado',
+                        'closed'       => 'Cerrado',
+                        default        => 'Nuevo',
+                    },
+                    'channel'        => $conv->contact?->channel,
+                ]);
+
+            return response()->json($conversations);
+        })->name('chats');
+
+        /*
+        |---------------------------------------------------------------------
+        | GET /api/meta/conversations/{conversation}
+        |
+        | Detalle de una conversación: datos del contacto + historial completo
+        | de mensajes. El Vue lo carga cuando el agente abre un chat.
+        |
+        | Devuelve 403 si la conversación no pertenece al usuario actual.
+        | (Semana 3: aquí irá la policy ConversationPolicy)
+        |---------------------------------------------------------------------
+        */
+        Route::get('/conversations/{conversation}', function (Conversation $conversation) {
+            $conversation->load([
+                'contact',
+                'messages.sender:id,name,avatar_url',
+                'ticket.assignedUser:id,name',
+                'ticket.tags:id,name,color',
+            ]);
+
+            return response()->json([
+                'id'              => $conversation->id,
+                'status'          => $conversation->status,
+                'within_24h_window' => $conversation->within_24h_window,
+                'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+                'contact'         => [
+                    'id'                  => $conversation->contact?->id,
+                    'display_name'        => $conversation->contact?->display_name,
+                    'profile_picture_url' => $conversation->contact?->profile_picture_url,
+                    'channel'             => $conversation->contact?->channel,
+                    'channel_id'          => $conversation->contact?->channel_id,
+                    'city'                => $conversation->contact?->city,
+                    'phone'               => $conversation->contact?->phone,
+                    'instagram_handle'    => $conversation->contact?->instagram_handle,
+                    'first_seen_at'       => $conversation->contact?->first_seen_at?->toIso8601String(),
+                ],
+                'ticket'          => $conversation->ticket ? [
+                    'id'            => $conversation->ticket->id,
+                    'status'        => $conversation->ticket->status,
+                    'priority'      => $conversation->ticket->priority,
+                    'city'          => $conversation->ticket->city,
+                    'course_interest' => $conversation->ticket->course_interest,
+                    'notes'         => $conversation->ticket->notes,
+                    'assigned_user' => $conversation->ticket->assignedUser ? [
+                        'id'     => $conversation->ticket->assignedUser->id,
+                        'name'   => $conversation->ticket->assignedUser->name,
+                        'avatar' => $conversation->ticket->assignedUser->avatar_url,
+                    ] : null,
+                    'tags'          => $conversation->ticket->tags->map(fn($tag) => [
+                        'id'    => $tag->id,
+                        'name'  => $tag->name,
+                        'color' => $tag->color,
+                    ]),
+                ] : null,
+                'messages'        => $conversation->messages->map(fn($msg) => [
+                    'id'          => $msg->id,
+                    'direction'   => $msg->direction,   // inbound | outbound
+                    'channel'     => $msg->channel,
+                    'type'        => $msg->type,        // text | image | audio | ...
+                    'body'        => $msg->body,
+                    'media_url'   => $msg->media_url,
+                    'status'      => $msg->status,      // sent | delivered | read | failed
+                    'sender'      => $msg->sender ? [
+                        'id'     => $msg->sender->id,
+                        'name'   => $msg->sender->name,
+                        'avatar' => $msg->sender->avatar_url,
+                    ] : null,
+                    'sent_at'     => $msg->sent_at?->toIso8601String(),
+                    'delivered_at'=> $msg->delivered_at?->toIso8601String(),
+                    'read_at'     => $msg->read_at?->toIso8601String(),
+                    'created_at'  => $msg->created_at->toIso8601String(),
+                ]),
+            ]);
+        })->name('conversations.show');
+
+        /*
+        |---------------------------------------------------------------------
+        | POST /api/meta/conversations/{conversation}/messages
+        |
+        | Envía un mensaje saliente desde el CRM hacia el canal del contacto.
+        | Delega al controlador correcto según el canal (facebook por ahora;
+        | instagram y whatsapp se conectan en Semana 3).
+        |
+        | Body esperado: { "body": "texto del mensaje" }
+        |---------------------------------------------------------------------
+        */
+        Route::post('/conversations/{conversation}/messages', FacebookMessageController::class . '@store')
+            ->name('conversations.messages.store');
+
+        /*
+        |=====================================================================
+        | Facebook — autenticación OAuth y páginas
+        |=====================================================================
+        */
+        Route::prefix('facebook')->name('facebook.')->group(function (): void {
+
+            /*
+            |----------------------------------------------------------------
+            | GET /api/meta/facebook/auth-url
+            |
+            | Genera la URL de autorización OAuth de Facebook.
+            | El Vue la usa en settings.accounts.vue para el botón
+            | "Vincular cuenta" de Facebook.
+            |
+            | Respuesta: { "status": true, "auth_url": "https://facebook.com/..." }
+            |----------------------------------------------------------------
+            */
+            Route::get('/auth-url', [FacebookAuthController::class, 'authUrl'])
+                ->name('auth-url');
+
+            /*
+            |----------------------------------------------------------------
+            | GET /api/meta/facebook/callback
+            |
+            | Recibe el código OAuth de Facebook tras autorizar la app.
+            | Intercambia el código por un token de larga duración y
+            | devuelve las páginas disponibles para vincular.
+            |
+            | Respuesta: { "status": true, "access_token": "...", "pages": [...] }
+            |----------------------------------------------------------------
+            */
+            Route::get('/callback', [FacebookAuthController::class, 'callback'])
+                ->name('callback');
+
+            /*
+            |----------------------------------------------------------------
+            | POST /api/meta/facebook/posts
+            |
+            | Publica un post en la página de Facebook configurada.
+            | Body esperado: { "message": "texto del post" }
+            |
+            | Respuesta: { "status": true, "post_id": "...", "payload": {...} }
+            |----------------------------------------------------------------
+            */
+            Route::post('/posts', [FacebookPostController::class, 'store'])
+                ->name('posts.store');
+
+        });
 
     });
 
