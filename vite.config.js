@@ -35,16 +35,18 @@ export default defineConfig({
     },
 
     server: {
-        // En Docker debe escuchar en todas las interfaces para ser alcanzable
-        // desde el contenedor de Laravel vía la red interna de Compose.
         host: process.env.VITE_HOST || 'localhost',
         port: parseInt(process.env.VITE_PORT || '5173'),
-
-        // Evita que Vite rechace requests que vienen del contenedor app (CORS interno)
         cors: true,
 
+        // HMR: el browser debe conectar a localhost, no a 0.0.0.0
+        hmr: {
+            host: 'localhost',
+            port: parseInt(process.env.VITE_PORT || '5173'),
+            clientPort: parseInt(process.env.VITE_PORT || '5173'),
+        },
+
         watch: {
-            // Las vistas compiladas de Laravel no deben disparar recargas
             ignored: ['**/storage/framework/views/**', '**/vendor/**'],
         },
     },
