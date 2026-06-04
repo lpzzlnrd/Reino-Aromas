@@ -17,6 +17,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             SuperadminSeeder::class,
+            DemoUsersSeeder::class,
+            TagsSeeder::class,
+            TemplatesSeeder::class,
+            DemoContactsSeeder::class,
+            DemoConversationsAndTicketsSeeder::class,
         ]);
     }
 }

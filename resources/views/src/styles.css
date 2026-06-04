@@ -110,3 +110,121 @@ body {
 .scroll::-webkit-scrollbar-thumb:hover {
     background: var(--color-accent-hover);
 }
+
+/* ============================================================
+   Clases utilitarias del sistema — Reino Aromas CRM
+   ============================================================ */
+
+/* Fondo con degradado suave tipo mesh */
+.mesh-bg {
+    background-color: var(--color-background);
+    background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(255, 139, 149, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(252, 192, 197, 0.10) 0%, transparent 55%),
+        radial-gradient(ellipse at 60% 80%, rgba(109, 18, 63, 0.04) 0%, transparent 50%);
+}
+
+/* Card de vidrio (glassmorphism suave) */
+.glass-card {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(109, 18, 63, 0.07);
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px rgba(109, 18, 63, 0.06), 0 1px 2px rgba(109, 18, 63, 0.04);
+    backdrop-filter: blur(8px);
+}
+
+/* Sidebar de vidrio */
+.glass-sidebar {
+    background: rgba(255, 252, 237, 0.85);
+    border-right: 1px solid rgba(109, 18, 63, 0.08);
+    box-shadow: 1px 0 8px rgba(109, 18, 63, 0.05);
+    backdrop-filter: blur(12px);
+}
+
+/* Botón primario — gradiente rosado → accent */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-family: var(--font-secondary);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-txt);
+    background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%);
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn-primary:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    filter: brightness(0.97);
+}
+
+/* Item de navegación del sidebar */
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.625rem;
+    font-family: var(--font-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: rgba(109, 18, 63, 0.55);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item:hover {
+    background: rgba(252, 192, 197, 0.35);
+    color: var(--color-primary);
+}
+
+.nav-item.active,
+.router-link-active .nav-item {
+    background: rgba(255, 139, 149, 0.2);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+/* Input con icono a la izquierda */
+.input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(109, 18, 63, 0.10);
+    border-radius: 0.75rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-group:focus-within {
+    border-color: rgba(255, 139, 149, 0.5);
+    box-shadow: 0 0 0 3px rgba(252, 192, 197, 0.2);
+}
+
+/* Animación de entrada suave */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.25s ease forwards;
+}

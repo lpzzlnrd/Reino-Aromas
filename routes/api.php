@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Webhooks\WhatsAppWebhookController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
 use App\Http\Controllers\Facebook\FacebookMessageController;
 use App\Http\Controllers\Facebook\FacebookPostController;
+use App\Http\Controllers\UserController;
 use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -70,6 +71,16 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     */
     Route::get('/user', fn(Request $request) => response()->json($request->user()))
         ->name('api.user');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Gestión de usuarios administradores — solo superadmin
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/users', [UserController::class, 'index'])->name('api.users.index');
+    Route::post('/users', [UserController::class, 'store'])->name('api.users.store');
+    Route::put('/users/{user}', [UserController::class, 'update'])->name('api.users.update');
+    Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('api.users.toggle-active');
 
     /*
     |=========================================================================

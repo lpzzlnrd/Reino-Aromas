@@ -7,6 +7,7 @@ import MessagesHome             from "./components/layouts/messages/messages.hom
 import SettingsResponsiveLayout from "./components/layouts/settings/settings.responsiveLayout.vue";
 import SettingsAccounts         from "./components/layouts/settings/settings.accounts.vue";
 import UserStatus               from "./components/layouts/settings/settings.updateStatus.vue";
+import UsersHome                from "./components/layouts/users/users.home.vue";
 
 /**
  * Rutas de la SPA Vue.
@@ -62,6 +63,12 @@ const router = createRouter({
                             name: "Users status",
                             component: UserStatus,
                             meta: { title: "Estado de usuarios" },
+                        },
+                        {
+                            path: "users",
+                            name: "Users",
+                            component: UsersHome,
+                            meta: { title: "Administradores" },
                         },
                     ],
                 },

@@ -73,6 +73,7 @@
             <!-- Sistema -->
             <nav class="flex flex-col gap-0.5 mt-auto pt-4 border-t border-primary/8">
                 <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Sistema</p>
+                <button class="nav-item" @click="goTo('Users')"><Users /><span>Administradores</span></button>
                 <button class="nav-item" @click="goTo('Accounts')"><User /><span>Mi Perfil</span></button>
                 <button class="nav-item" @click="goTo('Accounts')"><Gear /><span>Ajustes</span></button>
 
