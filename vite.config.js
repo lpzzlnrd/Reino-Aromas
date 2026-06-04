@@ -29,7 +29,6 @@ export default defineConfig({
 
     resolve: {
         alias: {
-            // Permite imports con @ dentro del código Vue (ej: @/hooks/caseStatus)
             '@': fileURLToPath(new URL('./resources/views/src', import.meta.url)),
         },
     },

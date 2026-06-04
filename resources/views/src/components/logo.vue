@@ -1,5 +1,7 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+const src = '/assets/img/logo.png'
+</script>
 
 <template>
-    <img src="/assets/img/logo.png" alt="logo">
+    <img :src="src" alt="logo">
 </template>

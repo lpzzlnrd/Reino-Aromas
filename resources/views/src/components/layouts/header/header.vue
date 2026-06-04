@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { computed } from 'vue';
+    import { computed, ref } from 'vue';
     import { useRoute } from 'vue-router';
     import { useAuth } from '@/composables/useAuth'
 
@@ -8,9 +8,10 @@
     import Info from '../../icons/icon.info.vue'
 
     const route = useRoute()
-    const { user } = useAuth()
+    const { user, logout } = useAuth()
 
     const pageName = computed(() => (route.meta.title as string) ?? 'Panel de control')
+    const menuOpen = ref(false)
 </script>
 
 <template>
@@ -44,12 +45,32 @@
                 <Info class="text-lg" />
             </button>
 
-            <!-- Avatar -->
-            <div v-if="user" class="flex items-center gap-2 pl-3 border-l border-primary/10">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
-                    {{ user.name.charAt(0).toUpperCase() }}
+            <!-- Avatar + menú -->
+            <div v-if="user" class="relative pl-3 border-l border-primary/10">
+                <button
+                    @click="menuOpen = !menuOpen"
+                    class="flex items-center gap-2 rounded-xl hover:bg-white/60 px-2 py-1 transition-all"
+                    type="button"
+                >
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
+                        {{ user.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <span class="hidden lg:block text-sm font-semibold text-primary/70 max-w-[100px] truncate">{{ user.name }}</span>
+                </button>
+
+                <div
+                    v-if="menuOpen"
+                    class="absolute right-0 top-full mt-2 w-40 bg-white rounded-xl shadow-lg border border-primary/10 py-1 z-50"
+                    @mouseleave="menuOpen = false"
+                >
+                    <button
+                        @click="logout"
+                        class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                        type="button"
+                    >
+                        Cerrar sesión
+                    </button>
                 </div>
-                <span class="hidden lg:block text-sm font-semibold text-primary/70 max-w-[100px] truncate">{{ user.name }}</span>
             </div>
         </div>
     </header>
