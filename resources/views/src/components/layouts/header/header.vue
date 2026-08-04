@@ -1,27 +1,77 @@
-﻿<script setup lang="ts">
-    import { ref } from 'vue';
+<script setup lang="ts">
+    import { computed, ref } from 'vue';
+    import { useRoute } from 'vue-router';
+    import { useAuth } from '@/composables/useAuth'
 
     import Search from '../../icons/icon.search.vue'
     import Bell from '../../icons/icon.bell.vue'
     import Info from '../../icons/icon.info.vue'
 
-    // const pageName = ref()
+    const route = useRoute()
+    const { user, logout } = useAuth()
+
+    const pageName = computed(() => (route.meta.title as string) ?? 'Panel de control')
+    const menuOpen = ref(false)
 </script>
 
 <template>
-    <header class="subtitle py-4 flex flex-row justify-between items-center">
-        <p class="text-lg font-medium">Panel de control</p>
-        <div class="flex flex-row gap-3 lg:gap-5 items-center">
-            <section id="search-section" class="input-group w-48 lg:w-64">
-                <Search class="text-primary opacity-60 group-focus-within:opacity-100 transition-opacity"/>
-                <input id="search-bar" type="text" placeholder="Buscar...">
-            </section>
-            <button id="notifications-btn" class="text-primary opacity-70 hover:opacity-100 hover:scale-110 transition-all cursor-pointer" type="button">
-                <Bell />
+    <header class="flex items-center justify-between gap-4">
+
+        <div>
+            <h2 class="text-lg font-semibold text-primary/80">{{ pageName }}</h2>
+        </div>
+
+        <div class="flex items-center gap-2 lg:gap-3">
+
+            <!-- Buscador -->
+            <label class="input-group w-40 lg:w-56 cursor-text group">
+                <Search class="text-primary/40 group-focus-within:text-primary/70 shrink-0 transition-colors" />
+                <input
+                    id="search-bar"
+                    type="text"
+                    placeholder="Buscar..."
+                    class="bg-transparent text-sm focus:outline-none w-full placeholder:text-primary/30"
+                >
+            </label>
+
+            <!-- Notificaciones -->
+            <button class="relative p-2 rounded-xl hover:bg-white/60 text-primary/50 hover:text-primary transition-all" type="button" aria-label="Notificaciones">
+                <Bell class="text-lg" />
+                <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-secondary rounded-full border border-white"></span>
             </button>
-            <button id="info-btn" class="text-primary opacity-70 hover:opacity-100 hover:scale-110 transition-all cursor-pointer" type="button">
-                <Info />
+
+            <!-- Info -->
+            <button class="p-2 rounded-xl hover:bg-white/60 text-primary/50 hover:text-primary transition-all" type="button" aria-label="Información">
+                <Info class="text-lg" />
             </button>
+
+            <!-- Avatar + menú -->
+            <div v-if="user" class="relative pl-3 border-l border-primary/10">
+                <button
+                    @click="menuOpen = !menuOpen"
+                    class="flex items-center gap-2 rounded-xl hover:bg-white/60 px-2 py-1 transition-all"
+                    type="button"
+                >
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
+                        {{ user.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <span class="hidden lg:block text-sm font-semibold text-primary/70 max-w-[100px] truncate">{{ user.name }}</span>
+                </button>
+
+                <div
+                    v-if="menuOpen"
+                    class="absolute right-0 top-full mt-2 w-40 bg-white rounded-xl shadow-lg border border-primary/10 py-1 z-50"
+                    @mouseleave="menuOpen = false"
+                >
+                    <button
+                        @click="logout"
+                        class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                        type="button"
+                    >
+                        Cerrar sesión
+                    </button>
+                </div>
+            </div>
         </div>
     </header>
 </template>

@@ -12,6 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Sanctum stateful: permite que las rutas /api/* usen la sesión web.
+        // Sin esto, auth:sanctum no puede leer la cookie de sesión del Vue.
+        $middleware->statefulApi();
+
         // Bloquea usuarios desactivados en todas las rutas protegidas por auth.
         $middleware->appendToGroup('web', \App\Http\Middleware\EnsureUserIsActive::class);
 

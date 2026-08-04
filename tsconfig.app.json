@@ -1,0 +1,17 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["resources/views/src/env.d.ts", "resources/views/src/**/*", "resources/views/src/**/*.vue"],
+  "exclude": ["resources/views/src/**/__tests__/*"],
+  "compilerOptions": {
+    // Extra safety for array and object lookups, but may have false positives.
+    "noUncheckedIndexedAccess": true,
+
+    // Debe coincidir con el alias '@' de vite.config.js
+    "paths": {
+      "@/*": ["./resources/views/src/*"]
+    },
+
+    // `vue-tsc --build` produces a .tsbuildinfo file for incremental type-checking.
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  }
+}

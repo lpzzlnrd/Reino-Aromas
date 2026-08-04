@@ -1,7 +1,7 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
     import Header from '../header/header.vue'
     import Relevant_Data from './dashboard.relevant.vue'
-    import Recents from './dashboar.recents.vue'
+    import Recents from './dashboard.recents.vue'
     import Cities from './dashboard.cities.vue'
     import Urgent from './dashboard.urgent.vue'
 
@@ -10,44 +10,32 @@
 
 <template>
     <div class="px-4 lg:px-8 py-6 w-full animate-fade-in overflow-x-hidden">
-        <!-- Unified Header & Search -->
+
         <Header class="mb-8" />
 
-        <!-- Welcome Section -->
-        <section class="mb-10 px-2">
-            <h1 class="text-3xl lg:text-4xl font-primary text-primary mb-2">¡Hola de nuevo!</h1>
-            <p class="text-secondary font-medium opacity-80 capitalize">{{ today }}</p>
+        <!-- Bienvenida -->
+        <section class="mb-8 px-1">
+            <h1 class="text-3xl lg:text-4xl font-primary text-primary mb-1">¡Hola de nuevo!</h1>
+            <p class="text-sm text-secondary font-medium capitalize opacity-80">{{ today }}</p>
         </section>
 
-        <!-- Main Dashboard Grid -->
-        <div id="dashboard-grid" class="grid grid-cols-12 gap-6 lg:gap-8">
-            
-            <!-- KPI Section (Full Width) -->
-            <div class="col-span-12">
-                <Relevant_Data />
-            </div>
+        <!-- KPIs -->
+        <section class="mb-8">
+            <Relevant_Data />
+        </section>
 
-            <!-- Middle Section: Activity & Distribution -->
+        <!-- Actividad + ciudades -->
+        <div class="grid grid-cols-12 gap-5 mb-8">
             <div class="col-span-12 lg:col-span-8">
-                <Recents />
+                <Recents class="h-full" />
             </div>
-
             <div class="col-span-12 lg:col-span-4">
-                <Cities />
+                <Cities class="h-full" />
             </div>
-
-            <!-- Bottom Section: Urgent Tasks -->
-            <div class="col-span-12">
-                <Urgent />
-            </div>
-
         </div>
+
+        <!-- Urgentes -->
+        <Urgent />
+
     </div>
 </template>
-
-<style scoped>
-    /* Prevent horizontal overflow issues with blur effects */
-    #dashboard-grid {
-        contain: layout;
-    }
-</style>

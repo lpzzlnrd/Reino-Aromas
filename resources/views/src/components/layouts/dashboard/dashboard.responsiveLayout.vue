@@ -1,5 +1,7 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
     import { ref } from 'vue'
+    import { useRouter } from 'vue-router'
+    import { useAuth } from '@/composables/useAuth'
 
     import Logo from '../../logo.vue'
     import Plus from '../../icons/icon.plus.vue'
@@ -12,130 +14,119 @@
     import Close from '../../icons/icon.close.vue'
     import Bars from '../../icons/icon.bars.vue'
 
+    const router = useRouter()
+    const { user, logout } = useAuth()
+
     const open = ref(false)
     const close = () => (open.value = false)
     const toggle = () => (open.value = !open.value)
+
+    const goTo = (name: string) => { router.push({ name }); close() }
 </script>
 
 <template>
     <div class="min-h-screen mesh-bg flex flex-col lg:flex-row font-secondary">
-        <!-- Mobile Header -->
-        <header class="md:hidden items-center justify-between p-4 bg-background/80 backdrop-blur-md border-b border-primary/10 flex sticky top-0 z-50">
-            <button @click="toggle" aria-label="Abrir menú" class="p-2 rounded-xl bg-accent/20 text-primary">
-                <Bars class="text-xl" />
+
+        <!-- Header móvil -->
+        <header class="md:hidden sticky top-0 z-50 flex items-center justify-between px-4 py-3
+                        bg-white/80 backdrop-blur-md border-b border-primary/8 shadow-sm">
+            <button @click="toggle" aria-label="Abrir menú"
+                    class="p-2 rounded-xl bg-accent/30 text-primary hover:bg-accent transition-colors">
+                <Bars />
             </button>
-            <Logo class="w-24" />
-            <button id="new-sell-btn" class="btn-primary scale-90">
-                <Plus />
+            <Logo class="h-8" />
+            <button class="btn-primary px-3 py-2 text-xs shadow-sm">
+                <Plus class="text-sm" />
                 <span>Venta</span>
             </button>
         </header>
 
-        <!-- Menu -->
-        <aside id="menu" class="z-40">
-            <!-- Desktop Menu -->
-            <div id="desktop-menu" class="hidden md:flex glass-sidebar h-screen w-64 flex-col sticky top-0 px-4 py-6">
-                <!-- Desktop Menu Header -->
-                <div id="menu-header" class='mb-8 px-2 flex flex-col items-center gap-3'>
-                    <Logo class="w-32 drop-shadow-sm" />
-                    <div class="text-center">
-                        <p class="text-primary font-primary text-2xl tracking-tight leading-tight">Reino Aromas</p>
-                        <p class="text-[10px] text-secondary font-bold uppercase tracking-[0.2em] opacity-80">Gourmet & Artesanal</p>
-                    </div>
-                </div>
+        <!-- Sidebar desktop -->
+        <aside class="hidden md:flex glass-sidebar h-screen w-60 flex-col sticky top-0 px-3 py-6 shrink-0 z-40">
 
-                <div class="flex-1 flex flex-col gap-8 overflow-y-auto custom-scrollbar">
-                    <!-- Quick Actions -->
-                    <div class="px-2">
-                        <button id="new-sell-btn" class="btn-primary w-full shadow-lg shadow-secondary/20 group">
-                            <Plus class="group-hover:rotate-90 transition-transform" />
-                            <span>Nueva Venta</span>
-                        </button>
-                    </div>
-
-                    <!-- Desktop Main Pages -->
-                    <nav id="pages-div" class="flex flex-col gap-1">
-                        <p class="px-4 text-[11px] font-bold text-primary/40 uppercase tracking-widest mb-2">Principal</p>
-                        <button id="home-btn" class="nav-item">
-                            <Home />
-                            <span>Dashboard</span>
-                        </button>
-                        <button id="chats-btn" class="nav-item">
-                            <Message />
-                            <span>Mensajería</span>
-                        </button>
-                        <button id="users-btn" class="nav-item">
-                            <Users />
-                            <span>Clientes</span>
-                        </button>
-                        <button id="reports-btn" class="nav-item">
-                            <Chart />
-                            <span>Reportes</span>
-                        </button>
-                    </nav>
-
-                    <!-- Desktop Options & User Pages -->
-                    <nav id="options-div" class="mt-auto pb-4 flex flex-col gap-1">
-                        <p class="px-4 text-[11px] font-bold text-primary/40 uppercase tracking-widest mb-2">Sistema</p>
-                        <button id="profile-btn" class="nav-item">
-                            <User />
-                            <span>Mi Perfil</span>
-                        </button>
-                        <button id="setting-btn" class="nav-item">
-                            <Gear />
-                            <span>Ajustes</span>
-                        </button>
-                    </nav>
+            <!-- Logo + nombre -->
+            <div class="mb-8 px-2 flex flex-col items-center gap-2 text-center">
+                <Logo class="w-24 drop-shadow-sm" />
+                <div>
+                    <p class="text-primary font-primary text-lg tracking-tight leading-tight">Reino Aromas</p>
+                    <p class="text-[9px] text-secondary font-bold uppercase tracking-[0.2em] opacity-70">Gourmet & Artesanal</p>
                 </div>
             </div>
 
-            <!-- Mobile Menu -->
-            <div id="mobile-menu">
-                <transition name="slide">
-                    <div v-if="open" class="fixed inset-0 z-50 flex md:hidden">
-                        <div class="w-72 bg-background/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6">
-                            <!-- Mobile Menu Header -->
-                            <header class="flex items-center justify-between mb-10">
-                                <Logo class="w-24" />
-                                <button @click="close" aria-label="Cerrar menú" class="p-2 rounded-full bg-accent/20 text-primary">
-                                    <Close class="text-xl" />
-                                </button>
-                            </header>
-
-                            <!-- Mobile Navigation -->
-                            <nav class="flex flex-col gap-4 flex-1">
-                                <button @click="close" class="flex items-center gap-4 text-primary font-medium p-3 rounded-2xl bg-accent/10">
-                                    <Home class="text-xl" />
-                                    <span>Dashboard</span>
-                                </button>
-                                <button @click="close" class="flex items-center gap-4 text-primary/70 font-medium p-3">
-                                    <Message class="text-xl" />
-                                    <span>Mensajería</span>
-                                </button>
-                                <button @click="close" class="flex items-center gap-4 text-primary/70 font-medium p-3">
-                                    <Users class="text-xl" />
-                                    <span>Clientes</span>
-                                </button>
-                                <button @click="close" class="flex items-center gap-4 text-primary/70 font-medium p-3">
-                                    <Chart class="text-xl" />
-                                    <span>Reportes</span>
-                                </button>
-                            </nav>
-
-                            <footer class="mt-auto border-t border-primary/10 pt-6">
-                                <button @click="close" class="flex items-center gap-4 text-primary/70 font-medium p-3 w-full">
-                                    <User class="text-xl" />
-                                    <span>Mi Perfil</span>
-                                </button>
-                            </footer>
-                        </div>
-                        <div class="flex-1 bg-primary/20 backdrop-blur-sm" @click="close"></div>
-                    </div>
-                </transition>
+            <!-- Acción rápida -->
+            <div class="px-2 mb-6">
+                <button class="btn-primary w-full shadow-md shadow-secondary/20 group text-sm py-2.5">
+                    <Plus class="group-hover:rotate-90 transition-transform duration-200" />
+                    <span>Nueva Venta</span>
+                </button>
             </div>
+
+            <!-- Navegación principal -->
+            <nav class="flex flex-col gap-0.5 flex-1 overflow-y-auto">
+                <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Principal</p>
+                <button class="nav-item" @click="goTo('Dashboard Home')"><Home /><span>Dashboard</span></button>
+                <button class="nav-item" @click="goTo('Messages Home')"><Message /><span>Mensajería</span></button>
+                <button class="nav-item" @click="goTo('Dashboard Home')"><Users /><span>Clientes</span></button>
+                <button class="nav-item" @click="goTo('Dashboard Home')"><Chart /><span>Reportes</span></button>
+            </nav>
+
+            <!-- Sistema -->
+            <nav class="flex flex-col gap-0.5 mt-auto pt-4 border-t border-primary/8">
+                <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Sistema</p>
+                <button class="nav-item" @click="goTo('Users')"><Users /><span>Administradores</span></button>
+                <button class="nav-item" @click="goTo('Accounts')"><User /><span>Mi Perfil</span></button>
+                <button class="nav-item" @click="goTo('Accounts')"><Gear /><span>Ajustes</span></button>
+
+                <!-- Usuario logueado -->
+                <div v-if="user" class="mt-3 mx-1 px-3 py-2.5 rounded-xl bg-primary/5 border border-primary/8 flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {{ user.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold text-primary truncate">{{ user.name }}</p>
+                        <p class="text-[10px] text-primary/50 capitalize">{{ user.role }}</p>
+                    </div>
+                </div>
+
+                <button @click="logout"
+                        class="nav-item text-red-400 hover:bg-red-50 hover:text-red-600 mt-1">
+                    <span>↩</span><span>Cerrar sesión</span>
+                </button>
+            </nav>
         </aside>
 
-        <!-- Content Area -->
+        <!-- Menú móvil overlay -->
+        <transition name="slide">
+            <div v-if="open" class="fixed inset-0 z-50 flex md:hidden">
+                <div class="w-72 bg-white/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6">
+                    <header class="flex items-center justify-between mb-8">
+                        <Logo class="w-20" />
+                        <button @click="close" aria-label="Cerrar menú"
+                                class="p-2 rounded-full bg-accent/20 text-primary hover:bg-accent transition-colors">
+                            <Close />
+                        </button>
+                    </header>
+                    <nav class="flex flex-col gap-1 flex-1">
+                        <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Home /><span>Dashboard</span></button>
+                        <button @click="goTo('Messages Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Message /><span>Mensajería</span></button>
+                        <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
+                        <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Chart /><span>Reportes</span></button>
+                    </nav>
+                    <footer v-if="user" class="mt-auto border-t border-primary/10 pt-4 flex items-center gap-2 p-2">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold">
+                            {{ user.name.charAt(0).toUpperCase() }}
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-primary">{{ user.name }}</p>
+                            <p class="text-xs text-primary/50 capitalize">{{ user.role }}</p>
+                        </div>
+                    </footer>
+                </div>
+                <div class="flex-1 bg-primary/20 backdrop-blur-sm" @click="close"></div>
+            </div>
+        </transition>
+
+        <!-- Contenido principal -->
         <main class="flex-1 min-w-0 overflow-y-auto">
             <router-view />
         </main>
@@ -143,30 +134,7 @@
 </template>
 
 <style scoped>
-    .slide-enter-active, .slide-leave-active {
-        transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .slide-enter-from {
-        transform: translateX(-100%);
-    }
-    .slide-enter-to {
-        transform: translateX(0);
-    }
-    .slide-leave-from {
-        transform: translateX(0);
-    }
-    .slide-leave-to {
-        transform: translateX(-100%);
-    }
-
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(109, 18, 63, 0.1);
-        border-radius: 10px;
-    }
+.slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.slide-enter-from, .slide-leave-to { transform: translateX(-100%); }
+.slide-enter-to, .slide-leave-from { transform: translateX(0); }
 </style>

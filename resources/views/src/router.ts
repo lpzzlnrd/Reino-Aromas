@@ -1,22 +1,83 @@
-﻿import { createRouter, createWebHistory } from "vue-router";
-import LoginPage from "./components/layouts/login/login.page.vue";
+import { createRouter, createWebHistory } from "vue-router";
 
-import DashboardLayout from "./components/layouts/dashboard/dashboard.responsiveLayout.vue";
-import DashboardHome from "./components/layouts/dashboard/dashboard.home.vue";
+import DashboardLayout          from "./components/layouts/dashboard/dashboard.responsiveLayout.vue";
+import DashboardHome            from "./components/layouts/dashboard/dashboard.home.vue";
+import MessagesLayout           from "./components/layouts/messages/messages.responsiveLayout.vue";
+import MessagesHome             from "./components/layouts/messages/messages.home.vue";
+import SettingsResponsiveLayout from "./components/layouts/settings/settings.responsiveLayout.vue";
+import SettingsAccounts         from "./components/layouts/settings/settings.accounts.vue";
+import UserStatus               from "./components/layouts/settings/settings.updateStatus.vue";
+import UsersHome                from "./components/layouts/users/users.home.vue";
 
+/**
+ * Rutas de la SPA Vue.
+ *
+ * El login fue removido de aquí: lo maneja Laravel con Blade + sesión propia.
+ * Cuando Laravel autentica al usuario redirige a /app, donde Vue toma control.
+ *
+ * Protección: todas las rutas /app/* están cubiertas por el middleware 'auth'
+ * en web.php — si el usuario no tiene sesión, Laravel lo manda al login
+ * antes de que el HTML del Vue siquiera se cargue.
+ */
 const router = createRouter({
     history: createWebHistory(),
     routes: [
-        {path: "/", name: "Login", component: LoginPage},
         {
-            path: '/dashboard', name: 'Dashboard Layout', component: DashboardLayout,
+            path: "/app",
+            name: "Dashboard Layout",
+            component: DashboardLayout,
             children: [
                 {
-                    path: 'dashboard-home', name: 'Dashboard Home', component: DashboardHome
-                }
-            ]
-        }
-    ]
+                    // /app  →  dashboard por defecto
+                    path: "",
+                    name: "Dashboard Home",
+                    component: DashboardHome,
+                    meta: { title: "Panel de control" },
+                },
+                {
+                    path: "messages",
+                    name: "Dashboard Messages",
+                    component: MessagesLayout,
+                    children: [
+                        {
+                            path: "",
+                            name: "Messages Home",
+                            component: MessagesHome,
+                            meta: { title: "Mensajes" },
+                        },
+                    ],
+                },
+                {
+                    path: "settings",
+                    name: "Dashboard Settings",
+                    component: SettingsResponsiveLayout,
+                    children: [
+                        {
+                            path: "accounts",
+                            name: "Accounts",
+                            component: SettingsAccounts,
+                            meta: { title: "Cuentas" },
+                        },
+                        {
+                            path: "status",
+                            name: "Users status",
+                            component: UserStatus,
+                            meta: { title: "Estado de usuarios" },
+                        },
+                        {
+                            path: "users",
+                            name: "Users",
+                            component: UsersHome,
+                            meta: { title: "Administradores" },
+                        },
+                    ],
+                },
+            ],
+        },
+
+        // Cualquier ruta no reconocida vuelve al dashboard
+        { path: "/:pathMatch(.*)*", redirect: "/app" },
+    ],
 });
 
 export default router;

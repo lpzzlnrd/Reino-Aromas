@@ -1,90 +1,36 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
     import { ref } from 'vue';
-    import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-    import { faComments, faTriangleExclamation, faCalendarCheck, faBoxArchive } from '@fortawesome/free-solid-svg-icons'
+    import { useCaseStatus, CaseStatus } from '@/hooks/caseStatus';
 
-    type Chat = 'activo' | 'urgente' | 'nuevo' | 'cerrado'
+    const { casesByStatus } = useCaseStatus()
+    const chatIncrease = ref(0)
 
-    const clientChats: Record<Chat, number> = {
-        activo: 10,
-        urgente: 2,
-        nuevo: 3,
-        cerrado: 4,
-    }
-
-    const chatIncrease = ref(5)
-
+    const cards = [
+        { label: 'Nuevos',       status: CaseStatus.New,         accent: 'from-violet-400 to-primary',    badge: 'text-green-600',  badgeLabel: `+${chatIncrease.value}%` },
+        { label: 'Interesados',  status: CaseStatus.Interested,  accent: 'from-pink-400 to-secondary',    badge: '',                badgeLabel: '' },
+        { label: 'Seguimiento',  status: CaseStatus.Following,   accent: 'from-sky-400 to-cyan-500',      badge: 'text-sky-600',    badgeLabel: 'activos' },
+        { label: 'Urgentes',     status: CaseStatus.HighPriority,accent: 'from-red-400 to-rose-600',      badge: 'text-red-600',    badgeLabel: '⚠ atención' },
+        { label: 'Reservas',     status: CaseStatus.Reserved,    accent: 'from-fuchsia-400 to-pink-500',  badge: 'text-green-600',  badgeLabel: 'totales' },
+        { label: 'Cerrados',     status: CaseStatus.Closed,      accent: 'from-stone-400 to-stone-600',   badge: 'text-primary/40', badgeLabel: 'histórico' },
+    ]
 </script>
 
 <template>
-    <div id="resume-div" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
-        
-        <!-- Active Chats -->
-        <div id="active-chats-div" class="glass-card p-6 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 text-primary opacity-5 group-hover:opacity-10 transition-opacity">
-                <FontAwesomeIcon :icon="faComments" class="text-8xl rotate-12" />
-            </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center text-primary">
-                    <FontAwesomeIcon :icon="faComments" />
-                </div>
-                <p class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Chats Activos</p>
-            </div>
-            <section class="flex items-baseline gap-2">
-                <p id="active-chats-amount" class="text-4xl font-primary text-primary">{{ clientChats.activo }}</p>
-                <p id="active-chats-augment" class="text-green-600 text-xs font-bold">+{{ chatIncrease }}%</p>
-            </section>
-        </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 w-full">
+        <div
+            v-for="card in cards"
+            :key="card.label"
+            class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+        >
+            <!-- Barra de color superior -->
+            <div :class="`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.accent} rounded-t-2xl`"></div>
 
-        <!-- High Priority -->
-        <div id="high-priority-div" class="glass-card p-6 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 text-red-700 opacity-5 group-hover:opacity-10 transition-opacity">
-                <FontAwesomeIcon :icon="faTriangleExclamation" class="text-8xl rotate-12" />
-            </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-700">
-                    <FontAwesomeIcon :icon="faTriangleExclamation" />
-                </div>
-                <p class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Alta Prioridad</p>
-            </div>
-            <section class="flex items-baseline gap-2">
-                <p id="high-priority-amount" class="text-4xl font-primary text-primary">{{ clientChats.urgente }}</p>
-                <p class="text-red-600 text-[10px] font-bold uppercase tracking-tighter">Acción requerida</p>
-            </section>
-        </div>
+            <p class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">{{ card.label }}</p>
 
-        <!-- Today's Reserves -->
-        <div id="today-reserves" class="glass-card p-6 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 text-secondary opacity-5 group-hover:opacity-10 transition-opacity">
-                <FontAwesomeIcon :icon="faCalendarCheck" class="text-8xl rotate-12" />
+            <div class="flex items-end gap-2">
+                <p class="text-4xl font-primary text-primary leading-none">{{ casesByStatus[card.status] }}</p>
+                <p v-if="card.badgeLabel" :class="`text-[11px] font-semibold mb-0.5 ${card.badge}`">{{ card.badgeLabel }}</p>
             </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-xl bg-secondary/20 flex items-center justify-center text-secondary">
-                    <FontAwesomeIcon :icon="faCalendarCheck" />
-                </div>
-                <p class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Reservas Hoy</p>
-            </div>
-            <section>
-                <p class="text-4xl font-primary text-primary">{{ clientChats.nuevo }}</p>
-            </section>
         </div>
-
-        <!-- Closed/Archive -->
-        <div id="closed" class="glass-card p-6 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 text-primary opacity-5 group-hover:opacity-10 transition-opacity">
-                <FontAwesomeIcon :icon="faBoxArchive" class="text-8xl rotate-12" />
-            </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <FontAwesomeIcon :icon="faBoxArchive" />
-                </div>
-                <p class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Histórico</p>
-            </div>
-            <section class="flex items-baseline gap-2">
-                <p id="closed-amount" class="text-4xl font-primary text-primary">{{ clientChats.cerrado }}</p>
-                <p class="text-primary/40 text-[10px] font-bold">Total cerrados</p>
-            </section>
-        </div>
-
     </div>
 </template>
