@@ -15,6 +15,7 @@
 /auth.json
 /node_modules
 /resources/views/node_modules
+/resources/views/dist
 /.claude
 /skills
 /public/build
@@ -27,4 +28,3 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
-/skills

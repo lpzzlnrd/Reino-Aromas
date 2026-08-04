@@ -111,7 +111,7 @@
             if (err.response?.status === 422) {
                 const errors = err.response.data.errors as Record<string, string[]>
                 formErrors.value = Object.fromEntries(
-                    Object.entries(errors).map(([k, v]) => [k, v[0]])
+                    Object.entries(errors).map(([k, v]) => [k, v[0] ?? 'Campo inválido'])
                 )
             }
         } finally {
