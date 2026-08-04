@@ -28,6 +28,11 @@
 </script>
 
 <template>
+    <!-- Contenedor flex propio: el <main> padre no es flex, así que sin este
+         wrapper el menú de configuración y el contenido se apilaban en vez de
+         quedar lado a lado. -->
+    <div class="flex h-full min-h-screen w-full">
+
     <!-- Panel lateral de configuración -->
     <div id="settings-desktop-menu" class="hidden md:flex md:w-52 md:flex-none shrink-0 border-r border-primary/10 bg-white/60">
         <div class="w-full h-full flex flex-col px-3 py-5 gap-1">
@@ -43,5 +48,7 @@
             </button>
         </div>
     </div>
-    <router-view />
+    <router-view class="flex-1 min-w-0" />
+
+    </div>
 </template>
