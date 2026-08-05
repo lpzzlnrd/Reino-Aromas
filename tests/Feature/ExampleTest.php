@@ -8,12 +8,18 @@ use Tests\TestCase;
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * La raíz redirige al login: no hay landing pública en el CRM.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_application_redirects_guests_to_login(): void
     {
-        $response = $this->get('/');
+        $this->get('/')->assertRedirect(route('login'));
+    }
 
-        $response->assertStatus(200);
+    /**
+     * El login de invitados responde correctamente.
+     */
+    public function test_the_login_page_renders(): void
+    {
+        $this->get('/login')->assertStatus(200);
     }
 }

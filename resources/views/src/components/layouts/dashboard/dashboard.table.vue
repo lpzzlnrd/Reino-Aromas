@@ -17,6 +17,7 @@
         { data: 'problem', title: 'Problema' },
         { data: 'wait',    title: 'Espera' },
         { data: 'assigned',title: 'Asignado',           render: '#assigned' },
+        { data: 'status',  title: 'Estado',             render: '#status' },
         { data: null,      title: 'Acción',             render: '#action' },
     ]
 </script>
@@ -49,6 +50,12 @@
                     </div>
                     <span class="text-sm text-primary/70">{{ rowData.assigned || 'Sin asignar' }}</span>
                 </div>
+            </template>
+
+            <template #status="{ rowData }">
+                <span class="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-100 whitespace-nowrap">
+                    {{ rowData.status }}
+                </span>
             </template>
 
             <template #action="{ rowData }">

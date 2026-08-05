@@ -41,6 +41,11 @@
 </script>
 
 <template>
+    <!-- Contenedor flex propio: el <main> padre no es flex, así que sin este
+         wrapper el panel de chats y el chat se apilaban verticalmente en vez
+         de quedar lado a lado. -->
+    <div class="flex h-full min-h-screen w-full">
+
     <!-- Panel lateral de chats -->
     <div class="hidden md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60">
 
@@ -106,4 +111,6 @@
 
     <!-- Vista del chat seleccionado -->
     <router-view :selected-chat="selectedChat" class="flex-1 min-w-0" />
+
+    </div>
 </template>

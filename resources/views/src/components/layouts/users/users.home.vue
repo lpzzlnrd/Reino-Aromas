@@ -167,6 +167,7 @@
 
         <!-- Tabla de usuarios -->
         <div class="glass-card overflow-hidden">
+          <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="border-b border-primary/8">
@@ -233,7 +234,7 @@
                             >
                                 <span :class="[
                                     'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
-                                    u.is_active ? 'translate-x-4.5' : 'translate-x-0.5'
+                                    u.is_active ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
                                 ]" />
                             </button>
                         </td>
@@ -250,8 +251,8 @@
                     </tr>
                 </tbody>
             </table>
+          </div>
         </div>
-    </div>
 
     <!-- Modal crear / editar -->
     <Teleport to="body">
@@ -261,7 +262,7 @@
                 <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" @click="closeModal" />
 
                 <!-- Panel del modal -->
-                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]">
                     <!-- Header modal -->
                     <div class="flex items-center justify-between px-6 py-5 border-b border-primary/8">
                         <div>
@@ -390,6 +391,7 @@
             </div>
         </Transition>
     </Teleport>
+    </div>
 </template>
 
 <style scoped>

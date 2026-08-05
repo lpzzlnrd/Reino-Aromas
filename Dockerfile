@@ -24,10 +24,18 @@ RUN npm ci --ignore-scripts
 
 # Copiar el resto del código fuente necesario para el build
 COPY vite.config.js ./
+# Los tsconfig viven en la raíz del repo, no en resources/views.
+COPY tsconfig*.json ./
 COPY resources/css ./resources/css
 COPY resources/js  ./resources/js
 COPY resources/views/src ./resources/views/src
-COPY resources/views/tsconfig*.json ./resources/views/
+# El @font-face de styles.css referencia ../public/assets/fonts/*, así que
+# Vite necesita esos archivos presentes o el build falla al resolverlos.
+COPY resources/views/public ./resources/views/public
+# Las vistas Blade deben estar presentes: los @source de app.css las escanean
+# para generar las clases Tailwind del login. Sin ellas el login sale sin estilos.
+COPY resources/views/*.blade.php ./resources/views/
+COPY resources/views/auth ./resources/views/auth
 
 # Generar los assets hasheados en public/build/
 RUN npm run build
@@ -36,7 +44,9 @@ RUN npm run build
 # -----------------------------------------------------------------------------
 # Stage 2: base PHP con extensiones
 # -----------------------------------------------------------------------------
-FROM php:8.3-fpm-alpine AS php-base
+# PHP 8.4: las dependencias de Symfony 8.x en composer.lock exigen >= 8.4.
+# Con 8.3 el platform_check.php de Composer aborta y el contenedor no arranca.
+FROM php:8.4-fpm-alpine AS php-base
 
 # Instalar dependencias del sistema y extensiones PHP requeridas por Laravel
 RUN apk add --no-cache \

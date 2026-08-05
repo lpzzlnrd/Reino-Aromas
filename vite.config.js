@@ -19,8 +19,12 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
     plugins: [
         laravel({
-            // Punto de entrada único: el main.ts del Vue arranca toda la SPA.
-            input: ['resources/views/src/main.ts'],
+            // Dos entradas:
+            //  - main.ts: arranca toda la SPA de Vue (todo /app/*).
+            //  - app.css: Tailwind para las vistas Blade puras (login), que no
+            //    cargan el bundle Vue. Sin esta entrada, @vite('resources/css/app.css')
+            //    revienta con "Unable to locate file in Vite manifest".
+            input: ['resources/views/src/main.ts', 'resources/css/app.css'],
             refresh: true,
         }),
         vue(),

@@ -25,7 +25,9 @@
 </script>
 
 <template>
-    <div class="min-h-screen mesh-bg flex flex-col lg:flex-row font-secondary">
+    <!-- El breakpoint del flex-row debe coincidir con el del sidebar (md), si no
+         entre 768px y 1024px el sidebar se apilaba encima del contenido. -->
+    <div class="min-h-screen mesh-bg flex flex-col md:flex-row font-secondary">
 
         <!-- Header móvil -->
         <header class="md:hidden sticky top-0 z-50 flex items-center justify-between px-4 py-3
@@ -127,7 +129,7 @@
         </transition>
 
         <!-- Contenido principal -->
-        <main class="flex-1 min-w-0 overflow-y-auto">
+        <main class="flex-1 min-w-0 flex flex-col overflow-x-hidden">
             <router-view />
         </main>
     </div>

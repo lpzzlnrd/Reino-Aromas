@@ -1,9 +1,11 @@
 @import 'tailwindcss';
 
+/* Escanea las vistas Blade puras (login) para generar sus clases.
+   Sin estos @source, Tailwind no ve login.blade.php y el login sale sin
+   estilos en producción. Las rutas son relativas a este archivo. */
+@source '../views/**/*.blade.php';
+@source '../js/**/*.js';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
