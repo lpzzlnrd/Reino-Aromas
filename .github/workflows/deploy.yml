@@ -1,14 +1,15 @@
 # =============================================================================
 # deploy.yml — CD de Reino Aromas CRM
 #
-# Cada push a main entra por SSH al VPS de Hostinger y corre docker/deploy.sh.
+# Cada push a main entra por SSH al VPS de Hostinger y actualiza la app
+# directamente (sin Docker): git pull, composer, npm build, migraciones.
 #
 # Secrets requeridos en el repo (Settings > Secrets and variables > Actions):
 #   VPS_HOST        IP o dominio del VPS
-#   VPS_USER        usuario SSH (ej. deploy)
+#   VPS_USER        usuario SSH (ej. root)
 #   VPS_SSH_KEY     llave privada completa, incluidos los BEGIN/END
 #   VPS_PORT        puerto SSH (opcional, 22 por defecto)
-#   VPS_APP_DIR     ruta del repo en el VPS (ej. /srv/reino-aromas)
+#   VPS_APP_DIR     ruta del repo en el VPS (ej. /var/www/reinoaromas)
 # =============================================================================
 name: Deploy a producción
 
@@ -26,11 +27,32 @@ concurrency:
 
 jobs:
   deploy:
-    name: Build y deploy en el VPS
+    name: Deploy en el VPS
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
+      # Un secret que no existe se interpola como cadena vacía, no falla. Sin
+      # esta comprobación el error que sale es "missing server host", que no
+      # dice cuál falta.
+      - name: Verificar que los secrets estén configurados
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        run: |
+          faltan=""
+          for s in VPS_HOST VPS_USER VPS_SSH_KEY VPS_APP_DIR; do
+            eval "valor=\$$s"
+            [ -z "$valor" ] && faltan="$faltan $s"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan secrets:$faltan — configúralos en Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          echo "Secrets OK."
+
       - name: Deploy por SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -38,28 +60,95 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          # El build de la imagen puede tardar en un VPS chico.
-          command_timeout: 25m
-          script_stops: true
+          command_timeout: 15m
+          script_stop: true
           script: |
             set -e
             cd "${{ secrets.VPS_APP_DIR }}"
-            chmod +x docker/deploy.sh
-            ./docker/deploy.sh
+
+            # sudo solo si no somos root, para que funcione con usuario root
+            # o con un usuario de deploy con sudoers.
+            SUDO=""
+            [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+
+            # Si algo falla a mitad, sacar el sitio de mantenimiento en vez de
+            # dejarlo con el 503 puesto indefinidamente.
+            trap 'php artisan up || true' ERR
+
+            if [ ! -f .env ]; then
+              echo "ERROR: no existe .env en $(pwd). Créalo antes del primer deploy." >&2
+              exit 1
+            fi
+
+            echo "→ Trayendo cambios de main..."
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+            echo "  commit: $(git rev-parse --short HEAD)"
+
+            echo "→ Activando modo mantenimiento..."
+            php artisan down --retry=60 || true
+
+            echo "→ Instalando dependencias PHP..."
+            composer install --optimize-autoloader --no-dev --no-interaction --no-progress
+
+            echo "→ Instalando dependencias y compilando frontend..."
+            # npm ci respeta package-lock.json: reproducible y más rápido que
+            # npm install, que puede resolver versiones distintas a las probadas.
+            npm ci --ignore-scripts
+            npm run build
+
+            echo "→ Ejecutando migraciones..."
+            php artisan migrate --force
+
+            echo "→ Limpiando cachés..."
+            php artisan view:clear
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+
+            echo "→ Cacheando config para producción..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan event:cache
+
+            echo "→ Reiniciando workers de cola..."
+            # Los workers de los Jobs de Meta siguen con el código viejo en
+            # memoria hasta que reciben esta señal.
+            php artisan queue:restart
+
+            echo "→ Ajustando permisos..."
+            $SUDO chown -R www-data:www-data "${{ secrets.VPS_APP_DIR }}"
+            $SUDO chmod -R 775 "${{ secrets.VPS_APP_DIR }}/storage" "${{ secrets.VPS_APP_DIR }}/bootstrap/cache"
+
+            echo "→ Recargando PHP-FPM y Nginx..."
+            $SUDO systemctl reload php8.4-fpm
+            $SUDO systemctl reload nginx
+
+            echo "→ Desactivando modo mantenimiento..."
+            php artisan up
+            trap - ERR
+
+            echo "✓ Deploy completado."
 
       - name: Verificar que el sitio responde
         # Smoke test desde fuera: si el deploy dejó el sitio caído, el job
         # falla y sale la notificación de GitHub.
         run: |
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
-              "https://${{ secrets.VPS_HOST }}/" || echo "000")
+            code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 15 \
+              "https://reinoaromas.tech/" || echo "000")
             echo "Intento $i: HTTP $code"
-            if [ "$code" = "200" ] || [ "$code" = "302" ]; then
-              echo "Sitio arriba."
-              exit 0
-            fi
+            # 200 = home, 302 = redirect al login, 401/403 = app viva tras auth.
+            case "$code" in
+              200|302|401|403) echo "Sitio arriba."; exit 0 ;;
+              503) echo "  (en modo mantenimiento, esperando...)" ;;
+            esac
             sleep 10
           done
-          echo "El sitio no respondió 200/302 tras el deploy." >&2
+          echo "El sitio no respondió tras el deploy." >&2
+          echo "Revisa los logs en el VPS:" >&2
+          echo "  tail -50 storage/logs/laravel.log" >&2
+          echo "  journalctl -u php8.4-fpm -n 50" >&2
           exit 1
