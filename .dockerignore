@@ -1,0 +1,71 @@
+# =============================================================================
+# .dockerignore — Reino Aromas CRM
+#
+# Sin este archivo, el `COPY . .` del Dockerfile mete vendor/, node_modules/,
+# .git y el .env local del host dentro de la imagen: build lentísimo, imagen
+# enorme y credenciales de desarrollo filtradas a producción.
+#
+# vendor/ lo genera `composer install` DENTRO de la imagen (sin --dev).
+# node_modules/ y public/build/ los genera el stage node-builder.
+# =============================================================================
+
+# --- Dependencias (se instalan dentro de la imagen) --------------------------
+vendor
+node_modules
+resources/views/node_modules
+
+# --- Artefactos de build (los produce el stage node-builder) -----------------
+public/build
+public/hot
+resources/views/dist
+
+# --- Secretos y config local -------------------------------------------------
+.env
+.env.*
+!.env.example
+auth.json
+
+# --- Git y CI ----------------------------------------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+
+# --- Storage: el contenido lo aporta el volumen storage-data -----------------
+# Se preservan los .gitignore para que la estructura de carpetas exista.
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+storage/pail
+storage/*.key
+public/storage
+
+# --- Tests y herramientas de desarrollo --------------------------------------
+tests
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache
+
+# --- Editores / IDE ----------------------------------------------------------
+.idea
+.vscode
+.zed
+.nova
+.cursor
+.codex
+.claude
+.phpactor.json
+_ide_helper.php
+.editorconfig
+
+# --- Docs y skills (no hacen falta en runtime) -------------------------------
+skills
+README.md
+LICENSE
+
+# --- Sistema operativo -------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.log

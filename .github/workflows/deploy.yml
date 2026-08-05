@@ -1,0 +1,65 @@
+# =============================================================================
+# deploy.yml — CD de Reino Aromas CRM
+#
+# Cada push a main entra por SSH al VPS de Hostinger y corre docker/deploy.sh.
+#
+# Secrets requeridos en el repo (Settings > Secrets and variables > Actions):
+#   VPS_HOST        IP o dominio del VPS
+#   VPS_USER        usuario SSH (ej. deploy)
+#   VPS_SSH_KEY     llave privada completa, incluidos los BEGIN/END
+#   VPS_PORT        puerto SSH (opcional, 22 por defecto)
+#   VPS_APP_DIR     ruta del repo en el VPS (ej. /srv/reino-aromas)
+# =============================================================================
+name: Deploy a producción
+
+on:
+  push:
+    branches: [main]
+  # Permite relanzar un deploy a mano desde la pestaña Actions.
+  workflow_dispatch:
+
+# Un deploy a la vez: si llegan dos pushes seguidos, el segundo espera en vez
+# de pisar al primero a mitad de las migraciones.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build y deploy en el VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Deploy por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          # El build de la imagen puede tardar en un VPS chico.
+          command_timeout: 25m
+          script_stops: true
+          script: |
+            set -e
+            cd "${{ secrets.VPS_APP_DIR }}"
+            chmod +x docker/deploy.sh
+            ./docker/deploy.sh
+
+      - name: Verificar que el sitio responde
+        # Smoke test desde fuera: si el deploy dejó el sitio caído, el job
+        # falla y sale la notificación de GitHub.
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+              "https://${{ secrets.VPS_HOST }}/" || echo "000")
+            echo "Intento $i: HTTP $code"
+            if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+              echo "Sitio arriba."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "El sitio no respondió 200/302 tras el deploy." >&2
+          exit 1
