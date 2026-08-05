@@ -105,7 +105,13 @@ RUN composer install \
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# PHP-FPM escucha en el puerto 9000 (Nginx hace proxy aquí)
+# Entrypoint: recrea la estructura de storage/ (el volumen del compose la tapa)
+# y ajusta permisos antes de arrancar php-fpm / queue:work / schedule:work.
+COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# PHP-FPM escucha en el puerto 9000 (Caddy hace fastcgi_pass aquí)
 EXPOSE 9000
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["php-fpm"]

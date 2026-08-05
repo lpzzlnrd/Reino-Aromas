@@ -1,0 +1,157 @@
+# =============================================================================
+# docker-compose.yml — Reino Aromas CRM (Producción)
+#
+# Servicios:
+#   app       PHP-FPM 8.4 con el código y los assets compilados (Dockerfile)
+#   queue     mismo imagen, corre `queue:work` para los Jobs de Meta
+#   scheduler mismo imagen, corre `schedule:work` (meta:facebook:sync, prune)
+#   redis     cache, colas y sesiones
+#   caddy     reverse proxy + TLS automático (Let's Encrypt), sirve public/
+#
+# MySQL es EXTERNO (gestionado): DB_HOST apunta al host del proveedor.
+#
+# Uso en el VPS:
+#   docker compose up -d --build
+#   docker compose logs -f app
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PHP-FPM — atiende las requests que le pasa Caddy por fastcgi
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      target: app
+    image: reino-aromas:latest
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # storage persiste fuera de la imagen: logs, sesiones de archivo,
+      # uploads en storage/app/public. Sin esto se pierde en cada deploy.
+      - storage-data:/var/www/html/storage
+      # public/ se comparte con Caddy para que sirva los estáticos y el
+      # index.php sin pasar por PHP. Es la MISMA ruta que ve php-fpm, que
+      # es requisito de fastcgi: los SCRIPT_FILENAME deben coincidir.
+      - public-data:/var/www/html/public
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # php-fpm no trae endpoint HTTP y la imagen alpine no incluye pgrep,
+      # así que se comprueba que el socket TCP 9000 acepta conexiones.
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [reino]
+
+  # ---------------------------------------------------------------------------
+  # Worker de colas — procesa los 6 Jobs de Meta (WhatsApp/Instagram/Facebook)
+  # ---------------------------------------------------------------------------
+  queue:
+    build:
+      context: .
+      target: app
+    image: reino-aromas:latest
+    restart: unless-stopped
+    env_file: .env
+    # --max-time=3600 recicla el worker cada hora: evita fugas de memoria en
+    # procesos largos. --tries=3 + backoff para reintentar fallos de la API Meta.
+    command: >
+      php artisan queue:work
+      --queue=default
+      --tries=3
+      --backoff=10
+      --max-jobs=1000
+      --max-time=3600
+      --sleep=3
+    volumes:
+      - storage-data:/var/www/html/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    stop_grace_period: 60s
+    networks: [reino]
+
+  # ---------------------------------------------------------------------------
+  # Scheduler — reemplaza el cron del host (routes/console.php)
+  # ---------------------------------------------------------------------------
+  scheduler:
+    build:
+      context: .
+      target: app
+    image: reino-aromas:latest
+    restart: unless-stopped
+    env_file: .env
+    # schedule:work es un proceso de larga vida que despierta cada minuto.
+    # No hace falta montar cron dentro del contenedor.
+    command: php artisan schedule:work
+    volumes:
+      - storage-data:/var/www/html/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [reino]
+
+  # ---------------------------------------------------------------------------
+  # Redis — cache, colas y sesiones
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly: las colas no deben perder jobs si el contenedor se reinicia.
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [reino]
+
+  # ---------------------------------------------------------------------------
+  # Caddy — TLS automático + servidor de estáticos + fastcgi a app:9000
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      # El Caddyfile usa estas para el sitio y el email de Let's Encrypt.
+      APP_DOMAIN: ${APP_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Solo lectura: Caddy sirve estáticos, nunca escribe en public/.
+      - public-data:/var/www/html/public:ro
+      # Certificados y estado de Caddy — DEBE persistir o se re-emiten
+      # certificados en cada deploy y Let's Encrypt aplica rate limit.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    networks: [reino]
+
+volumes:
+  storage-data:
+  public-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  reino:
+    driver: bridge
