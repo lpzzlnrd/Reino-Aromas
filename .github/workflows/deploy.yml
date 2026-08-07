@@ -62,9 +62,9 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           command_timeout: 15m
           script_stop: true
-          # Sin esto, un fallo de conexion solo reporta "Process exited with
-          # status 1" sin decir si fue autenticacion, red o host desconocido.
-          debug: true
+          # Si un deploy vuelve a fallar sin imprimir nada del VPS, agregar
+          # `debug: true` aqui: muestra el handshake SSH completo y distingue
+          # un fallo de autenticacion de uno de red o de formato de la llave.
           script: |
             set -e
             cd "${{ secrets.VPS_APP_DIR }}"
