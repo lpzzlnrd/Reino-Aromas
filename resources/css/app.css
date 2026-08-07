@@ -7,7 +7,33 @@
 @source '../js/**/*.js';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
+/* Fuentes de marca. Estan declaradas igual en views/src/styles.css, que solo
+   entra por el bundle Vue (main.ts). El login es Blade puro y no carga ese
+   bundle, asi que sin estos @font-face aqui se renderiza con la tipografia
+   del sistema. Duplicarlas cuesta ~240KB de TTF; la alternativa era cargar
+   1.4MB de SPA en la pantalla de login solo para conseguirlas. */
+@font-face {
+    font-family: 'Poppins-Regular';
+    src: url('../views/public/assets/fonts/Poppins-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Roxborough CF';
+    src: url('../views/public/assets/fonts/Roxborough CF.ttf') format('truetype');
+    font-display: swap;
+}
+
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    /* font-sans es lo que usa login.blade.php en <body>. Apuntaba a
+       'Instrument Sans', que no existe en el proyecto. */
+    --font-sans: 'Poppins-Regular', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Mismos nombres que styles.css para que las clases font-primary /
+       font-secondary funcionen igual en Blade y en los componentes Vue. */
+    --font-primary: 'Roxborough CF';
+    --font-secondary: 'Poppins-Regular';
 }
