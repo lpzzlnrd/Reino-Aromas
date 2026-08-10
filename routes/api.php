@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\Flows\FlowEndpointController;
 use App\Http\Controllers\Api\Webhooks\InstagramWebhookController;
 use App\Http\Controllers\Api\Webhooks\WhatsAppWebhookController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
@@ -51,6 +52,20 @@ Route::prefix('webhooks')->group(function (): void {
         ->name('webhooks.whatsapp.receive');
 
 });
+
+/*
+|-----------------------------------------------------------------------------
+| WhatsApp Flows — canal de datos, SIN autenticación de sesión
+|
+| Meta llama a este endpoint desde sus servidores: no hay cookie ni usuario.
+| La seguridad es doble y va dentro del controlador:
+|   1. firma HMAC en X-Hub-Signature-256 (responde 432 si no valida)
+|   2. cifrado híbrido RSA + AES-GCM (responde 421 si no descifra)
+|
+| Esta URL se configura en el Flow Builder de WhatsApp Manager.
+|-----------------------------------------------------------------------------
+*/
+Route::post('flows/endpoint', FlowEndpointController::class)->name('flows.endpoint');
 
 /*
 |-----------------------------------------------------------------------------

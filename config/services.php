@@ -42,6 +42,23 @@ return [
         'graph_api_version'    => env('META_GRAPH_API_VERSION', 'v21.0'),
         'instagram_account_id'      => env('META_INSTAGRAM_ACCOUNT_ID'),
         'whatsapp_phone_number_id'  => env('META_WHATSAPP_PHONE_NUMBER_ID'),
+
+        /*
+        |----------------------------------------------------------------------
+        | WhatsApp Flows
+        |
+        | Par RSA 2048 que cifra el canal de datos del endpoint. Se genera con
+        | `php artisan flows:generate-keys` y la pública se sube con
+        | `php artisan flows:upload-key`.
+        |
+        | La privada va SOLO en el .env del servidor, nunca en git. En el .env
+        | debe ir entre comillas dobles con los saltos escapados como \n.
+        |----------------------------------------------------------------------
+        */
+        'flows' => [
+            'private_key' => env('FLOWS_PRIVATE_KEY'),
+            'passphrase'  => env('FLOWS_PASSPHRASE', ''),
+        ],
     ],
 
 ];
