@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar sesión — {{ config('app.name', 'Reino Aromas') }}</title>
-    <link rel="icon" href="/favicon.ico">
+    {{-- Favicon generado desde el logo de marca (public/assets/img/logo.png).
+         El .ico lleva 16/32/48 embebidos, así que un solo enlace basta. --}}
+    <link rel="icon" href="/favicon.ico" sizes="any">
 
     {{-- Tailwind compilado por el Vite raíz (resources/css/app.css).
          El login es una vista Blade pura — no necesita cargar todo el bundle Vue. --}}
@@ -80,9 +82,20 @@
             </button>
         </form>
 
-        <p class="mt-8 text-center text-[10px] text-[#6D123F]/40 uppercase tracking-[0.2em]">
-            Reino Aromas v2.0
-        </p>
+        {{-- Enlaces legales. Meta espera poder llegar a la política de
+             privacidad desde la propia interfaz, no solo por URL directa. --}}
+        <div class="mt-8 pt-6 border-t border-[#6D123F]/10 text-center">
+            <div class="flex items-center justify-center gap-4 text-[10px] uppercase tracking-widest text-[#6D123F]/40">
+                <a href="{{ route('legal.privacidad') }}" class="hover:text-[#FF8B95] transition">Privacidad</a>
+                <span class="text-[#6D123F]/20">·</span>
+                <a href="{{ route('legal.terminos') }}" class="hover:text-[#FF8B95] transition">Términos</a>
+                <span class="text-[#6D123F]/20">·</span>
+                <a href="{{ route('legal.eliminacion-datos') }}" class="hover:text-[#FF8B95] transition">Tus datos</a>
+            </div>
+            <p class="mt-4 text-[10px] text-[#6D123F]/40 uppercase tracking-[0.2em]">
+                Reino Aromas v2.0
+            </p>
+        </div>
     </div>
 
 </body>

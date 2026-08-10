@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\LegalController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -9,6 +10,27 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::get('/', fn() => redirect()->route('login'));
+
+/*
+|--------------------------------------------------------------------------
+| Páginas legales — PÚBLICAS, sin autenticación
+|
+| Meta abre estas URLs durante App Review y rechaza la app si devuelven 404 o
+| piden login. Van deliberadamente fuera de los grupos 'auth' y 'guest': el
+| middleware 'guest' redirigiría a /app a un usuario ya logueado que quiera
+| leer la política, que no es lo que queremos.
+|
+| Estas rutas se cargan en App Dashboard → Configuración → Básica:
+|   /privacidad           → Privacy Policy URL
+|   /terminos             → Terms of Service URL
+|   /eliminacion-de-datos → Data Deletion Instructions URL
+|--------------------------------------------------------------------------
+*/
+Route::controller(LegalController::class)->group(function () {
+    Route::get('/privacidad', 'privacidad')->name('legal.privacidad');
+    Route::get('/terminos', 'terminos')->name('legal.terminos');
+    Route::get('/eliminacion-de-datos', 'eliminacionDatos')->name('legal.eliminacion-datos');
+});
 
 /*
 |--------------------------------------------------------------------------
