@@ -45,6 +45,24 @@ return [
 
         /*
         |----------------------------------------------------------------------
+        | Facebook Messenger
+        |
+        | page_id distingue quién habla en cada evento del webhook: Meta manda
+        | el mismo formato para los mensajes del cliente y para los que envía
+        | la Página, y sin este id ProcessMetaWebhookJob no sabe cuál de los
+        | dos participantes es el contacto.
+        |
+        | page_access_token es el token de la Página (no el de la app) que usa
+        | FacebookMessagingService para responder.
+        |----------------------------------------------------------------------
+        */
+        'facebook' => [
+            'page_id'           => env('META_FACEBOOK_PAGE_ID'),
+            'page_access_token' => env('META_FACEBOOK_PAGE_ACCESS_TOKEN'),
+        ],
+
+        /*
+        |----------------------------------------------------------------------
         | WhatsApp Flows
         |
         | Par RSA 2048 que cifra el canal de datos del endpoint. Se genera con

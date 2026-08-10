@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\Flows\FlowEndpointController;
+use App\Http\Controllers\Api\Webhooks\FacebookWebhookController;
 use App\Http\Controllers\Api\Webhooks\InstagramWebhookController;
 use App\Http\Controllers\Api\Webhooks\WhatsAppWebhookController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
-use App\Http\Controllers\Facebook\FacebookMessageController;
 use App\Http\Controllers\Facebook\FacebookPostController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\TemplateController;
+use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
-use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -50,6 +53,18 @@ Route::prefix('webhooks')->group(function (): void {
 
     Route::post('whatsapp', [WhatsAppWebhookController::class, 'receive'])
         ->name('webhooks.whatsapp.receive');
+
+    /*
+    | Facebook Messenger. Cada red necesita su propia URL: aunque el verify
+    | token es común y Meta valide igual, cada controlador descarta los eventos
+    | cuyo `object` no le corresponde. Apuntar la Página a la URL de WhatsApp
+    | hace que los mensajes se pierdan sin dejar rastro en los logs.
+    */
+    Route::get('facebook', [FacebookWebhookController::class, 'verify'])
+        ->name('webhooks.facebook.verify');
+
+    Route::post('facebook', [FacebookWebhookController::class, 'receive'])
+        ->name('webhooks.facebook.receive');
 
 });
 
@@ -130,6 +145,37 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         ->name('api.conversations.templates');
 
     /*
+    |-------------------------------------------------------------------------
+    | Tickets
+    |
+    | Alimentan el Kanban y el panel lateral del chat. Los cambios de estado,
+    | prioridad y asignación pasan por TicketService para que queden en
+    | activity_logs.
+    |
+    | /tickets/counts va ANTES de /tickets/{ticket} o Laravel resolvería
+    | "counts" como un id y devolvería 404.
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/tickets/counts', [TicketController::class, 'counts'])->name('api.tickets.counts');
+
+    Route::get('/tickets', [TicketController::class, 'index'])->name('api.tickets.index');
+    Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('api.tickets.show');
+    Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])->name('api.tickets.update');
+    Route::put('/tickets/{ticket}/tags', [TicketController::class, 'syncTags'])->name('api.tickets.tags');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Contactos
+    |
+    | Sin POST: los contactos nacen de los webhooks de Meta. Crearlos a mano
+    | daría registros sin channel_id que ningún canal puede alcanzar.
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/contacts', [ContactController::class, 'index'])->name('api.contacts.index');
+    Route::get('/contacts/{contact}', [ContactController::class, 'show'])->name('api.contacts.show');
+    Route::patch('/contacts/{contact}', [ContactController::class, 'update'])->name('api.contacts.update');
+
+    /*
     |=========================================================================
     | Meta — conversaciones y mensajes
     |
@@ -143,141 +189,66 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         |---------------------------------------------------------------------
         | GET /api/meta/chats
         |
-        | Lista de conversaciones activas (status = 'open') con el último
-        | mensaje de cada una. Usado por useMetaData.ts → loadMetaChats().
+        | Lista de conversaciones para la bandeja, con el último mensaje de
+        | cada una. Usado por useMetaData.ts → loadMetaChats().
         |
-        | Estructura de cada item (mapeada al tipo MetaApiChat del frontend):
+        | Estructura de cada item (tipo MetaApiChat del frontend):
         |   id            → conversation.id
         |   contact_name  → contact.display_name
         |   contact_avatar→ contact.profile_picture_url
         |   last_message  → último mensaje de la conversación
         |   message_time  → last_message_at de la conversación
         |   location      → contact.city
-        |   case_status   → ticket.status (si existe) o 'Nuevo'
+        |   case_status   → etiqueta del enum CaseStatus.ts, o 'Nuevo' sin ticket
         |   channel       → contact.channel (facebook | instagram | whatsapp)
+        |
+        | Filtros opcionales: ?status=&channel=&case=&search=&mine=1
         |---------------------------------------------------------------------
         */
-        Route::get('/chats', function () {
-            $conversations = Conversation::query()
-                ->where('status', 'open')
-                ->with([
-                    'contact',
-                    // Solo el último mensaje para no cargar toda la historia
-                    'messages' => fn($q) => $q->latest('created_at')->limit(1),
-                    'ticket',
-                ])
-                ->orderByDesc('last_message_at')
-                ->get()
-                ->map(fn(Conversation $conv) => [
-                    'id'             => $conv->id,
-                    'contact_name'   => $conv->contact?->display_name ?? 'Sin nombre',
-                    'contact_avatar' => $conv->contact?->profile_picture_url,
-                    'last_message'   => $conv->messages->first()?->body ?? '',
-                    'message_time'   => $conv->last_message_at?->toIso8601String(),
-                    'location'       => $conv->contact?->city,
-                    // El Vue espera uno de los valores del enum CaseStatus.ts
-                    // Mapeamos el status del ticket al valor en español del enum
-                    'case_status'    => match($conv->ticket?->status) {
-                        'interested'   => 'Interesado',
-                        'high_priority'=> 'Urgente',
-                        'following'    => 'En seguimiento',
-                        'reserved'     => 'Reservado',
-                        'closed'       => 'Cerrado',
-                        default        => 'Nuevo',
-                    },
-                    'channel'        => $conv->contact?->channel,
-                ]);
-
-            return response()->json($conversations);
-        })->name('chats');
+        Route::get('/chats', [ConversationController::class, 'index'])->name('chats');
 
         /*
         |---------------------------------------------------------------------
         | GET /api/meta/conversations/{conversation}
         |
-        | Detalle de una conversación: datos del contacto + historial completo
+        | Detalle de una conversacion: contacto, ticket e historial completo
         | de mensajes. El Vue lo carga cuando el agente abre un chat.
-        |
-        | Devuelve 403 si la conversación no pertenece al usuario actual.
-        | (Semana 3: aquí irá la policy ConversationPolicy)
         |---------------------------------------------------------------------
         */
-        Route::get('/conversations/{conversation}', function (Conversation $conversation) {
-            $conversation->load([
-                'contact',
-                'messages.sender:id,name,avatar_url',
-                'ticket.assignedUser:id,name',
-                'ticket.tags:id,name,color',
-            ]);
+        Route::get("/conversations/{conversation}", [ConversationController::class, "show"])
+            ->name("conversations.show");
 
-            return response()->json([
-                'id'              => $conversation->id,
-                'status'          => $conversation->status,
-                'within_24h_window' => $conversation->within_24h_window,
-                'last_message_at' => $conversation->last_message_at?->toIso8601String(),
-                'contact'         => [
-                    'id'                  => $conversation->contact?->id,
-                    'display_name'        => $conversation->contact?->display_name,
-                    'profile_picture_url' => $conversation->contact?->profile_picture_url,
-                    'channel'             => $conversation->contact?->channel,
-                    'channel_id'          => $conversation->contact?->channel_id,
-                    'city'                => $conversation->contact?->city,
-                    'phone'               => $conversation->contact?->phone,
-                    'instagram_handle'    => $conversation->contact?->instagram_handle,
-                    'first_seen_at'       => $conversation->contact?->first_seen_at?->toIso8601String(),
-                ],
-                'ticket'          => $conversation->ticket ? [
-                    'id'            => $conversation->ticket->id,
-                    'status'        => $conversation->ticket->status,
-                    'priority'      => $conversation->ticket->priority,
-                    'city'          => $conversation->ticket->city,
-                    'course_interest' => $conversation->ticket->course_interest,
-                    'notes'         => $conversation->ticket->notes,
-                    'assigned_user' => $conversation->ticket->assignedUser ? [
-                        'id'     => $conversation->ticket->assignedUser->id,
-                        'name'   => $conversation->ticket->assignedUser->name,
-                        'avatar' => $conversation->ticket->assignedUser->avatar_url,
-                    ] : null,
-                    'tags'          => $conversation->ticket->tags->map(fn($tag) => [
-                        'id'    => $tag->id,
-                        'name'  => $tag->name,
-                        'color' => $tag->color,
-                    ]),
-                ] : null,
-                'messages'        => $conversation->messages->map(fn($msg) => [
-                    'id'          => $msg->id,
-                    'direction'   => $msg->direction,   // inbound | outbound
-                    'channel'     => $msg->channel,
-                    'type'        => $msg->type,        // text | image | audio | ...
-                    'body'        => $msg->body,
-                    'media_url'   => $msg->media_url,
-                    'status'      => $msg->status,      // sent | delivered | read | failed
-                    'sender'      => $msg->sender ? [
-                        'id'     => $msg->sender->id,
-                        'name'   => $msg->sender->name,
-                        'avatar' => $msg->sender->avatar_url,
-                    ] : null,
-                    'sent_at'     => $msg->sent_at?->toIso8601String(),
-                    'delivered_at'=> $msg->delivered_at?->toIso8601String(),
-                    'read_at'     => $msg->read_at?->toIso8601String(),
-                    'created_at'  => $msg->created_at->toIso8601String(),
-                ]),
-            ]);
-        })->name('conversations.show');
+        // Cierre y reapertura del chat. No tocan el ticket: son ciclos de vida
+        // distintos — el chat puede cerrarse con el ticket aun en seguimiento.
+        Route::patch("/conversations/{conversation}/close", [ConversationController::class, "close"])
+            ->name("conversations.close");
+
+        Route::patch("/conversations/{conversation}/reopen", [ConversationController::class, "reopen"])
+            ->name("conversations.reopen");
 
         /*
         |---------------------------------------------------------------------
         | POST /api/meta/conversations/{conversation}/messages
         |
-        | Envía un mensaje saliente desde el CRM hacia el canal del contacto.
-        | Delega al controlador correcto según el canal (facebook por ahora;
-        | instagram y whatsapp se conectan en Semana 3).
+        | Encola un mensaje saliente hacia el canal del contacto.
+        |
+        | MessageController no sabe de canales: OutboundMessageService elige el
+        | Job segun contact.channel. Antes esta ruta apuntaba directo a
+        | FacebookMessageController, asi que responder un WhatsApp intentaba
+        | salir por Facebook.
         |
         | Body esperado: { "body": "texto del mensaje" }
+        | Responde 202: el envio real ocurre en la cola y el mensaje nace
+        | en estado "pending".
         |---------------------------------------------------------------------
         */
-        Route::post('/conversations/{conversation}/messages', FacebookMessageController::class . '@store')
-            ->name('conversations.messages.store');
+        Route::post("/conversations/{conversation}/messages", [MessageController::class, "store"])
+            ->name("conversations.messages.store");
+
+        // Envio de una plantilla ya renderizada en el servidor. Es lo que
+        // consume el selector de plantillas del chat.
+        Route::post("/conversations/{conversation}/messages/template/{template}", [MessageController::class, "storeFromTemplate"])
+            ->name("conversations.messages.template");
 
         /*
         |=====================================================================

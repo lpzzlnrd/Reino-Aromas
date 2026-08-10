@@ -169,59 +169,257 @@ Sin este toggle, la API no ve ni un solo DM aunque el webhook esté perfecto.
 
 ---
 
-## 6. Webhooks — configuración exacta para este CRM
+## 6. Webhooks — configuración exacta, red por red
 
-Tu backend ya tiene los endpoints implementados y verificados en el código.
-Estos son los valores exactos:
+Aquí es donde la gente se traba, así que va con todo el detalle: qué URL poner,
+dónde exactamente, y de dónde sale cada valor.
 
-| Producto | Callback URL | Verify Token |
-|---|---|---|
-| WhatsApp | `https://reinoaromas.tech/api/webhooks/whatsapp` | el valor de `META_WEBHOOK_VERIFY_TOKEN` |
-| Instagram | `https://reinoaromas.tech/api/webhooks/instagram` | el mismo valor |
+### 6.0 — Primero: el verify token (esto va antes que nada)
 
-**Campos a suscribir:**
+El **verify token** es una contraseña que **tú inventas**. No te la da Meta.
+Sirve para una sola cosa: cuando configuras un webhook, Meta llama a tu servidor
+y te muestra ese texto; si tu servidor responde con el mismo valor, Meta sabe
+que el servidor es tuyo y no de un impostor.
 
-- WhatsApp → `messages` (obligatorio). Opcional: `message_template_status_update`.
-- Instagram → `messages`, `messaging_postbacks`, `messaging_seen`.
+**Dónde se usa (tiene que ser el MISMO valor en los dos sitios):**
 
-**Cómo funciona la verificación en tu código:** Meta hace un `GET` con
-`hub.mode`, `hub.verify_token` y `hub.challenge`. PHP convierte los puntos en
-guiones bajos, por eso los controladores leen `hub_mode` — está correcto, no lo
-"arregles". El controlador compara el token contra
-`config('services.meta.webhook_verify_token')` y devuelve el challenge en texto
-plano.
+1. En el `.env` del VPS, como `META_WEBHOOK_VERIFY_TOKEN`
+2. En el App Dashboard, en el campo "Verificar token" de cada webhook
 
-**Requisitos del endpoint** (ya cumplidos por tu VPS):
-- HTTPS con certificado válido → lo tienes con certbot.
-- Responder en menos de 5 segundos → los controladores responden `200` de
-  inmediato y despachan a un Job.
-- Firma HMAC-SHA256 en `X-Hub-Signature-256` → ya se valida contra
-  `META_APP_SECRET`.
-
-> **La app debe estar publicada (Live) para recibir webhooks**, sin importar el
-> estado de App Review. En modo desarrollo solo llegan eventos de usuarios con
-> rol en la app.
-
-### Variables a cargar en el `.env` del VPS
-
-Hoy están **todas vacías**, por eso no se procesa ningún mensaje:
-
-```env
-META_APP_SECRET=              # Dashboard → Configuración → Básica → Clave secreta
-META_ACCESS_TOKEN=            # el token permanente del System User (sección 4)
-META_WEBHOOK_VERIFY_TOKEN=    # inventado por ti, mismo valor en el dashboard
-META_GRAPH_API_VERSION=v21.0  # ya tiene valor por defecto
-META_INSTAGRAM_ACCOUNT_ID=    # ID de la cuenta profesional de Instagram
-META_WHATSAPP_PHONE_NUMBER_ID= # Phone Number ID de la sección 4
-```
-
-Para generar un verify token seguro:
+**Cómo generarlo** — en el VPS:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Después de editar el `.env` en el VPS, **los tres pasos son obligatorios**:
+Eso da algo como `a3f8...9c2b`. Cópialo, va en los dos lados.
+
+**Un solo verify token sirve para WhatsApp, Instagram y Facebook.** No hace
+falta uno distinto por red: los tres controladores leen la misma variable.
+
+**Cárgalo antes de configurar los webhooks:**
+
+```bash
+cd /var/www/reinoaromas && {
+  nano .env          # pegar META_WEBHOOK_VERIFY_TOKEN=<el valor>
+  /usr/bin/php8.4 artisan config:cache
+  systemctl restart reino-queue
+}
+```
+
+> Si configuras el webhook en Meta **antes** de cargar el token en el VPS, la
+> verificación falla y Meta muestra "The callback URL or verify token couldn't
+> be validated". No es un error tuyo — simplemente falta el paso de arriba.
+
+---
+
+### 6.1 — WhatsApp
+
+**Ruta en el dashboard:**
+App Dashboard → menú izquierdo **WhatsApp** → **Configuración** → sección
+**Webhook** → botón **Editar**
+
+| Campo | Qué poner |
+|---|---|
+| URL de devolución de llamada | `https://reinoaromas.tech/api/webhooks/whatsapp` |
+| Verificar token | el valor de `META_WEBHOOK_VERIFY_TOKEN` |
+
+Pulsa **Verificar y guardar**. Debe quedar en verde.
+
+**Después, suscribir los campos** (botón "Administrar" junto a Campos de webhook):
+
+| Campo | ¿Obligatorio? | Para qué |
+|---|---|---|
+| `messages` | **Sí** | Mensajes entrantes y estados de entrega |
+| `message_template_status_update` | No | Avisa si Meta aprueba o rechaza una plantilla |
+| `flows` | Solo si usas Flows | Respuestas de formularios y alertas del endpoint |
+
+Sin `messages` no llega absolutamente nada.
+
+---
+
+### 6.2 — Instagram
+
+**Ruta en el dashboard:**
+App Dashboard → **Webhooks** (menú izquierdo) → desplegable arriba → elegir
+**Instagram** → **Suscribirse a este objeto**
+
+| Campo | Qué poner |
+|---|---|
+| URL de devolución de llamada | `https://reinoaromas.tech/api/webhooks/instagram` |
+| Verificar token | el **mismo** `META_WEBHOOK_VERIFY_TOKEN` |
+
+**Campos a suscribir:**
+
+| Campo | Para qué |
+|---|---|
+| `messages` | DMs entrantes — el importante |
+| `messaging_postbacks` | Cuando tocan un botón |
+| `messaging_seen` | Confirmación de lectura |
+
+**Dos cosas que rompen Instagram y no dan error claro:**
+
+1. **El toggle en el teléfono.** En la app de Instagram: Configuración →
+   Mensajes y respuestas a historias → Controles de mensajes → Herramientas
+   conectadas → **Permitir acceso a los mensajes**. Sin esto no llega ni un DM
+   aunque el webhook esté en verde.
+2. **La app debe estar publicada (Live).** En modo desarrollo solo llegan
+   eventos de usuarios que tienen rol en la app.
+
+---
+
+### 6.3 — Facebook (páginas)
+
+**Ruta en el dashboard:**
+App Dashboard → **Webhooks** (menú izquierdo) → desplegable arriba → elegir
+**Página** → **Suscribirse a este objeto**
+
+| Campo | Qué poner |
+|---|---|
+| URL de devolución de llamada | `https://reinoaromas.tech/api/webhooks/facebook` |
+| Verificar token | el **mismo** `META_WEBHOOK_VERIFY_TOKEN` |
+
+**Campos a suscribir:**
+
+| Campo | Para qué |
+|---|---|
+| `messages` | Mensajes entrantes de Messenger — el importante |
+| `messaging_postbacks` | Cuando tocan un botón |
+| `message_deliveries` | Confirmación de entrega |
+
+> **Usa esta URL, NO la de WhatsApp.**
+>
+> Cada red necesita su propia URL aunque el verify token sea común. Si apuntas
+> el webhook de Página a `/api/webhooks/whatsapp`, la verificación **pasa en
+> verde** (el token es el mismo) pero los mensajes **se descartan en silencio**:
+> ese controlador exige `object === 'whatsapp_business_account'` y un payload de
+> página no lo cumple. No hay error en ningún log — simplemente no llega nada.
+>
+> Hay un test que cubre exactamente esto:
+> `tests/Feature/FacebookWebhookTest.php`.
+
+**Variables que necesita este canal** (además del verify token):
+
+| Variable | Dónde sacarla |
+|---|---|
+| `META_FACEBOOK_PAGE_ID` | Dashboard → la Página → Configuración → ID de la página |
+| `META_FACEBOOK_PAGE_ACCESS_TOKEN` | Token **de la Página**, no el de la app |
+
+Sin `META_FACEBOOK_PAGE_ID` los mensajes entrantes se procesan a medias: es lo
+que distingue quién habla en cada evento, porque Meta manda el mismo formato
+para el mensaje del cliente y para el que envía la Página.
+
+---
+
+### 6.4 — WhatsApp Flows (el formulario dentro del chat)
+
+Esto **no se configura en la sección de Webhooks**, sino dentro del Flow.
+
+**Ruta:** WhatsApp Manager → **Flows** → abrir tu Flow → **⋯** → **Endpoint**
+
+| Campo | Qué poner |
+|---|---|
+| URI del endpoint | `https://reinoaromas.tech/api/webhooks/flows` |
+| Aplicación de Meta | selecciona **Reino Aromas** (de ahí saca el App Secret para firmar) |
+
+**Antes de eso hay que subir la clave pública**, o el endpoint no puede
+descifrar nada:
+
+```bash
+cd /var/www/reinoaromas && {
+  /usr/bin/php8.4 artisan flows:generate-keys
+  # pegar FLOWS_PRIVATE_KEY y FLOWS_PASSPHRASE en el .env
+  /usr/bin/php8.4 artisan config:cache
+  /usr/bin/php8.4 artisan flows:upload-key
+  /usr/bin/php8.4 artisan flows:upload-key --check
+}
+```
+
+El `--check` debe decir **`VALID`**. Si dice `MISMATCH`, la clave que Meta tiene
+no corresponde a la privada local: vuelve a correr `flows:upload-key`.
+
+**Hay que re-subir la clave** cuando: re-registras el número, o empiezan a
+llegar errores `public-key-missing` / `public-key-signature-verification`.
+
+**Verificar que el endpoint responde:** en la misma pantalla del Flow Builder
+hay un botón de **health check** que manda un ping real. Debe dar verde.
+
+---
+
+### 6.5 — Resumen de todas las URLs
+
+| Qué | URL | Dónde se configura |
+|---|---|---|
+| WhatsApp | `https://reinoaromas.tech/api/webhooks/whatsapp` | Dashboard → WhatsApp → Configuración |
+| Instagram | `https://reinoaromas.tech/api/webhooks/instagram` | Dashboard → Webhooks → Instagram |
+| Facebook | `https://reinoaromas.tech/api/webhooks/facebook` | Dashboard → Webhooks → Página |
+| Flows | `https://reinoaromas.tech/api/webhooks/flows` | WhatsApp Manager → Flows → Endpoint |
+
+**Cada red va a su propia URL.** Compartirlas parece funcionar (mismo verify
+token, verificación en verde) pero los mensajes se descartan sin dejar rastro.
+
+Las cuatro son **HTTPS obligatorio** (ya lo tienes con certbot) y deben responder
+en menos de 5 segundos — los controladores responden `200` de inmediato y
+despachan el trabajo a la cola.
+
+---
+
+### 6.6 — Cómo funciona la verificación por dentro
+
+Cuando pulsas "Verificar y guardar", Meta hace un `GET` a tu URL con tres
+parámetros: `hub.mode`, `hub.verify_token` y `hub.challenge`. Tu controlador
+compara el token y devuelve el challenge en texto plano.
+
+> **Detalle que parece un bug y no lo es:** el código lee `hub_mode` con guion
+> bajo, aunque Meta envía `hub.mode` con punto. PHP convierte los puntos en
+> guiones bajos en los query strings automáticamente. **No lo "arregles"** — si
+> lo cambias a `hub.mode`, deja de funcionar.
+
+Los mensajes entrantes (`POST`) se validan distinto: por firma HMAC-SHA256 en
+el header `X-Hub-Signature-256`, contra `META_APP_SECRET`. Por eso ese secreto
+también tiene que estar cargado.
+
+---
+
+### 6.7 — Variables del `.env` del VPS
+
+**Bloque base** — sin esto no se procesa ningún mensaje:
+
+```env
+META_APP_SECRET=               # Dashboard → Configuración → Básica → Clave secreta
+META_ACCESS_TOKEN=             # token permanente del System User (sección 4)
+META_WEBHOOK_VERIFY_TOKEN=     # lo inventas tú (ver 6.0)
+META_GRAPH_API_VERSION=v21.0   # ya tiene valor por defecto
+META_INSTAGRAM_ACCOUNT_ID=     # ID de la cuenta profesional de Instagram
+META_WHATSAPP_PHONE_NUMBER_ID= # Phone Number ID (sección 4)
+```
+
+**Bloque de Facebook Messenger** — solo si van a atender la Página:
+
+```env
+META_FACEBOOK_PAGE_ID=           # Dashboard → la Página → ID de la página
+META_FACEBOOK_PAGE_ACCESS_TOKEN= # token DE LA PÁGINA, no el de la app
+```
+
+> Sin `META_FACEBOOK_PAGE_ID` no se puede responder por Messenger, y los
+> mensajes entrantes se procesan a medias: es el dato que distingue quién habla
+> en cada evento del webhook.
+
+**Bloque de Flows** — solo si van a usar el formulario en el chat:
+
+```env
+FLOWS_PRIVATE_KEY=             # lo genera flows:generate-keys
+FLOWS_PASSPHRASE=              # idem
+FLOWS_WELCOME_ID=              # ID del Flow publicado, sale de WhatsApp Manager
+FLOWS_WELCOME_CTA=Ver cursos   # texto del botón (máx. 20 caracteres)
+FLOWS_WELCOME_FIRST_SCREEN=BIENVENIDA
+```
+
+> **`FLOWS_WELCOME_ID` vacío = disparo automático desactivado.** Todo sigue
+> funcionando como hoy: entra el mensaje, se crea el ticket, un agente atiende.
+> Eso permite desplegar el código antes de tener el Flow publicado.
+
+**Después de editar el `.env`, los dos pasos son obligatorios:**
 
 ```bash
 cd /var/www/reinoaromas && \
@@ -229,7 +427,60 @@ cd /var/www/reinoaromas && \
   systemctl restart reino-queue
 ```
 
-Sin el `restart` el worker sigue corriendo con los valores viejos en memoria.
+Sin el `restart`, el worker sigue con los valores viejos en memoria y vas a
+pensar que no funcionó.
+
+---
+
+### 6.8 — Qué pasa cuando un cliente nuevo escribe
+
+Con todo configurado, el CRM hace esto solo:
+
+1. Llega el mensaje al webhook de WhatsApp
+2. Se crea el `Contact`, la `Conversation` y el `Ticket` en estado `nuevo`
+3. **Si es un contacto nuevo** y `FLOWS_WELCOME_ID` está configurado, se le
+   envía el formulario de bienvenida
+4. El cliente elige ciudad → el endpoint le muestra precio, qué incluye y
+   horario **leídos de la BD** (los editas en el CRM, en Plantillas → Datos del
+   curso)
+5. Si dice "estoy interesado", el ticket pasa a **prioridad muy alta** y un
+   agente lo ve arriba en la bandeja
+
+**Si el Flow falla o el cliente lo cierra a medias, el ticket ya existe** desde
+el paso 2. Nunca se pierde un lead por un fallo del formulario.
+
+Las ciudades del formulario salen de las plantillas **activas y con precio**.
+Margarita está inactiva a propósito (el negocio la tiene "en desarrollo"), así
+que no aparece. Para activarla: CRM → Plantillas → Precio Margarita → activar.
+
+---
+
+### 6.9 — Qué pasa cuando un agente responde
+
+El envío es **asíncrono**: la API responde `202` de inmediato y el mensaje sale
+por la cola.
+
+1. El agente escribe en el chat → `POST /api/meta/conversations/{id}/messages`
+2. El mensaje se guarda en estado **`pending`** y aparece en el chat al instante
+3. `OutboundMessageService` despacha el Job del canal del contacto
+   (`SendWhatsAppMessageJob`, `SendInstagramMessageJob` o
+   `SendFacebookMessageJob`)
+4. El worker llama a la API de Meta y el mensaje pasa a **`sent`**, con el
+   `external_id` que devolvió Meta
+5. Si Meta falla, reintenta 3 veces (10s, 30s, 120s). Al agotarlas queda en
+   **`failed`** con el motivo en `failed_reason`
+
+> **Si los mensajes se quedan en `pending` para siempre, el worker está caído.**
+> No es un problema de credenciales de Meta:
+>
+> ```bash
+> systemctl status reino-queue
+> systemctl restart reino-queue
+> ```
+
+El canal lo decide `contact.channel`, no la interfaz. Antes esta ruta apuntaba
+siempre a Facebook: responder un WhatsApp intentaba salir por Messenger.
+Cubierto por `tests/Feature/OutboundMessageChannelTest.php`.
 
 ---
 
@@ -652,11 +903,23 @@ Instagram:
 
 Webhooks:
 
+- [ ] `META_WEBHOOK_VERIFY_TOKEN` generado y cargado en el `.env` **antes** de
+      configurar nada en el dashboard (ver 6.0)
 - [ ] Callback de WhatsApp verificado (marca verde en el dashboard)
 - [ ] Callback de Instagram verificado
 - [ ] Campo `messages` suscrito en ambos
-- [ ] `META_APP_SECRET` y `META_WEBHOOK_VERIFY_TOKEN` cargados
+- [ ] `META_APP_SECRET` cargado
 - [ ] `config:cache` corrido y `reino-queue` reiniciado
+
+WhatsApp Flows (opcional, solo si van a usar el formulario en el chat):
+
+- [ ] `flows:generate-keys` corrido y claves en el `.env`
+- [ ] `flows:upload-key --check` devuelve **`VALID`**
+- [ ] Flow creado y publicado en WhatsApp Manager
+- [ ] Endpoint del Flow apuntando a `/api/webhooks/flows`
+- [ ] Health check del Flow Builder en verde
+- [ ] `FLOWS_WELCOME_ID` cargado (déjalo vacío para mantenerlo desactivado)
+- [ ] Precios cargados en CRM → Plantillas → Datos del curso
 
 App Review:
 

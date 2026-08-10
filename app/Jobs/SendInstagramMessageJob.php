@@ -1,63 +1,108 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Jobs;
 
+use App\Models\Contact;
 use App\Models\Message;
 use App\Services\Meta\InstagramService;
-use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
 class SendInstagramMessageJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Queueable;
 
     public int $tries = 3;
-    public array $backoff = [10, 30, 60];
 
+    /**
+     * @var list<int>
+     */
+    public array $backoff = [10, 30, 120];
+
+    /**
+     * Recibe solo el id del mensaje: el destinatario y el texto se leen del
+     * registro ya persistido. Así el Job no puede enviar algo distinto de lo
+     * que el CRM muestra en el chat.
+     */
     public function __construct(
-        private readonly string $recipientIgsid,
-        private readonly string $text,
-        private readonly int $messageId,
+        private int $messageId,
     ) {}
 
     public function handle(InstagramService $instagramService): void
     {
-        $result = $instagramService->sendMessage($this->recipientIgsid, $this->text);
+        $message = Message::query()
+            ->with(['conversation.contact'])
+            ->find($this->messageId);
 
-        $message = Message::find($this->messageId);
-
-        if (!$message) {
-            Log::warning("[Instagram] Mensaje {$this->messageId} no encontrado para actualizar estado");
+        if ($message === null || $message->direction !== Message::DIRECTION_OUTBOUND) {
             return;
         }
 
-        if ($result['success']) {
-            $message->update([
-                'status'      => 'sent',
-                'external_id' => $result['message_id'],
-                'sent_at'     => now(),
-            ]);
-        } else {
-            $message->update([
-                'status'        => 'failed',
-                'failed_reason' => json_encode($result['error']),
-            ]);
+        $contact = $message->conversation?->contact;
+        if ($contact === null || $contact->channel !== Contact::CHANNEL_INSTAGRAM) {
+            $this->markFailed($message, 'La conversación no pertenece a un contacto de Instagram.');
+
+            return;
         }
+
+        // El IGSID vive en channel_id; instagram_handle es solo para mostrar y
+        // la API no lo acepta como destinatario.
+        $recipient = $contact->channel_id;
+        if ($recipient === null || $recipient === '') {
+            $this->markFailed($message, 'El contacto no tiene IGSID de Instagram.');
+
+            return;
+        }
+
+        $text = $message->body;
+        if ($text === null || $text === '') {
+            $this->markFailed($message, 'El cuerpo del mensaje está vacío.');
+
+            return;
+        }
+
+        $result = $instagramService->sendMessage($recipient, $text);
+
+        // Se lanza excepción en vez de marcar failed y volver: sin throw la
+        // cola considera el Job exitoso y $tries nunca reintenta.
+        if (! ($result['success'] ?? false)) {
+            throw new \RuntimeException(
+                is_string($result['error'] ?? null)
+                    ? $result['error']
+                    : json_encode($result['error'] ?? 'Error al enviar el mensaje de Instagram.'),
+            );
+        }
+
+        $message->forceFill([
+            'external_id'   => (string) ($result['message_id'] ?? $message->external_id),
+            'meta_payload'  => $result['payload'] ?? $message->meta_payload,
+            'status'        => Message::STATUS_SENT,
+            'sent_at'       => $message->sent_at ?? now(),
+            'failed_reason' => null,
+        ])->save();
     }
 
     public function failed(\Throwable $exception): void
     {
-        Log::error("[Instagram] SendInstagramMessageJob fallido para mensaje {$this->messageId}", [
-            'error' => $exception->getMessage(),
-        ]);
+        $message = Message::query()->find($this->messageId);
+        if ($message !== null) {
+            $this->markFailed($message, $exception->getMessage());
+        }
 
-        Message::find($this->messageId)?->update([
-            'status'        => 'failed',
-            'failed_reason' => $exception->getMessage(),
+        Log::error('[Instagram] SendInstagramMessageJob agotó los reintentos', [
+            'message_id' => $this->messageId,
+            'error'      => $exception->getMessage(),
         ]);
+    }
+
+    private function markFailed(Message $message, string $reason): void
+    {
+        $message->forceFill([
+            'status'        => Message::STATUS_FAILED,
+            'failed_reason' => $reason,
+        ])->save();
     }
 }

@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Conversation extends Model
 {
+    public const STATUS_OPEN   = 'open';
+    public const STATUS_CLOSED = 'closed';
+
     protected $fillable = [
         'contact_id',
         'status',

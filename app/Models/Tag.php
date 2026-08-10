@@ -11,6 +11,8 @@ class Tag extends Model
 
     public function tickets(): BelongsToMany
     {
-        return $this->belongsToMany(Ticket::class);
+        // Tabla explícita: por convención Eloquent buscaría 'tag_ticket' (orden
+        // alfabético) pero la migración la creó como 'ticket_tag'.
+        return $this->belongsToMany(Ticket::class, 'ticket_tag');
     }
 }
