@@ -23,6 +23,14 @@
         meta_template_name: string | null
         variables: string[]
         variables_desconocidas: string[]
+        // Datos del curso. Los consume el endpoint de WhatsApp Flows para
+        // armar la pantalla de información, y son la fuente de verdad del
+        // precio — el texto del cuerpo es solo para copiar y pegar.
+        price: string | null
+        deposit: string | null
+        includes: string | null
+        visit_frequency: string | null
+        schedule: string | null
     }
 
     type TemplateForm = {
@@ -33,6 +41,11 @@
         category: string
         is_active: boolean
         meta_template_name: string
+        price: string
+        deposit: string
+        includes: string
+        visit_frequency: string
+        schedule: string
     }
 
     const CIUDADES: { valor: Ciudad; etiqueta: string }[] = [
@@ -76,6 +89,11 @@
         category: '',
         is_active: true,
         meta_template_name: '',
+        price: '',
+        deposit: '',
+        includes: '',
+        visit_frequency: '',
+        schedule: '',
     })
 
     const form = ref<TemplateForm>(formVacio())
@@ -207,6 +225,11 @@
             category: t.category ?? '',
             is_active: t.is_active,
             meta_template_name: t.meta_template_name ?? '',
+            price: t.price ?? '',
+            deposit: t.deposit ?? '',
+            includes: t.includes ?? '',
+            visit_frequency: t.visit_frequency ?? '',
+            schedule: t.schedule ?? '',
         }
         formErrors.value = {}
         showModal.value = true
@@ -230,6 +253,11 @@
             channel: form.value.channel || null,
             category: form.value.category || null,
             meta_template_name: form.value.meta_template_name || null,
+            price: form.value.price !== '' ? form.value.price : null,
+            deposit: form.value.deposit !== '' ? form.value.deposit : null,
+            includes: form.value.includes || null,
+            visit_frequency: form.value.visit_frequency || null,
+            schedule: form.value.schedule || null,
         }
 
         try {
@@ -417,6 +445,13 @@
                     <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-secondary/15 text-primary/60 border border-secondary/20">
                         {{ etiquetaCanal(t.channel) }}
                     </span>
+                    <!-- El precio distingue las plantillas que alimentan el Flow -->
+                    <span
+                        v-if="t.price"
+                        class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200"
+                    >
+                        ${{ Number(t.price).toFixed(0) }}
+                    </span>
                     <span
                         v-for="v in t.variables"
                         :key="v"
@@ -573,6 +608,109 @@
                                     <p class="text-sm text-primary/85 whitespace-pre-wrap leading-relaxed">{{ preview }}</p>
                                 </div>
                             </div>
+
+                            <!-- Datos del curso — alimentan el Flow de WhatsApp -->
+                            <details class="group" :open="form.city !== ''">
+                                <summary class="text-[11px] font-bold text-primary/50 uppercase tracking-widest cursor-pointer hover:text-primary/70 transition-colors list-none flex items-center gap-1.5">
+                                    <span class="transition-transform group-open:rotate-90">▸</span>
+                                    Datos del curso
+                                    <span class="font-normal normal-case tracking-normal text-primary/35">
+                                        — los usa el formulario de WhatsApp
+                                    </span>
+                                </summary>
+
+                                <div class="mt-3 flex flex-col gap-3 pl-4 border-l-2 border-secondary/25">
+                                    <p class="text-[11px] text-primary/45 leading-relaxed">
+                                        Cuando un cliente nuevo escribe por WhatsApp, el formulario automático
+                                        le muestra estos datos según su ciudad. Es la fuente de verdad del
+                                        precio: cámbialo aquí y se actualiza en todos lados.
+                                    </p>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="flex flex-col gap-1">
+                                            <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">
+                                                Precio (USD)
+                                            </label>
+                                            <input
+                                                v-model="form.price"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                placeholder="130"
+                                                class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25"
+                                                :class="{ 'border-red-300 bg-red-50': formErrors.price }"
+                                            >
+                                            <p v-if="formErrors.price" class="text-xs text-red-500">{{ formErrors.price }}</p>
+                                        </div>
+
+                                        <div class="flex flex-col gap-1">
+                                            <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">
+                                                Reserva (USD)
+                                            </label>
+                                            <input
+                                                v-model="form.deposit"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                placeholder="20"
+                                                class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25"
+                                                :class="{ 'border-red-300 bg-red-50': formErrors.deposit }"
+                                            >
+                                            <p v-if="formErrors.deposit" class="text-xs text-red-500">{{ formErrors.deposit }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">
+                                            Qué incluye
+                                        </label>
+                                        <input
+                                            v-model="form.includes"
+                                            type="text"
+                                            placeholder="Materiales e insumos, desayuno, refrigerio y café."
+                                            class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25"
+                                        >
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="flex flex-col gap-1">
+                                            <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">
+                                                Frecuencia
+                                            </label>
+                                            <input
+                                                v-model="form.visit_frequency"
+                                                type="text"
+                                                placeholder="Cada mes"
+                                                class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25"
+                                            >
+                                        </div>
+
+                                        <div class="flex flex-col gap-1">
+                                            <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">
+                                                Horario
+                                            </label>
+                                            <input
+                                                v-model="form.schedule"
+                                                type="text"
+                                                placeholder="10:00 am a 6:00 pm"
+                                                class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25"
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <!-- Aviso: sin precio la ciudad no sale en el formulario -->
+                                    <div
+                                        v-if="form.city !== '' && form.price === '' && form.is_active"
+                                        class="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2"
+                                    >
+                                        <Alert class="w-4 h-4 shrink-0 mt-0.5" />
+                                        <span>
+                                            Sin precio, <strong>{{ etiquetaCiudad(form.city as Ciudad) }}</strong>
+                                            no aparecerá como opción en el formulario de WhatsApp.
+                                        </span>
+                                    </div>
+                                </div>
+                            </details>
 
                             <!-- Avanzado -->
                             <details class="group">

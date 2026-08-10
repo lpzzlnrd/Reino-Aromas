@@ -20,6 +20,11 @@ class Template extends Model
         'city',
         'channel',
         'category',
+        'price',
+        'deposit',
+        'includes',
+        'visit_frequency',
+        'schedule',
         'meta_template_name',
         'is_active',
     ];
@@ -33,6 +38,8 @@ class Template extends Model
             'is_active'    => 'boolean',
             'usage_count'  => 'integer',
             'last_used_at' => 'datetime',
+            'price'        => 'decimal:2',
+            'deposit'      => 'decimal:2',
         ];
     }
 

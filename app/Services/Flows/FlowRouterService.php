@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services\Flows;
 
+use App\Models\Conversation;
+use App\Models\Template;
+use App\Services\TicketService;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Decide qué responder a cada request del canal de datos de un Flow.
  *
- * Meta manda tres tipos de request al endpoint, todos por el mismo POST:
+ * Meta manda varios tipos de request por el mismo POST:
  *
  *   - action=ping          → health check periódico
  *   - data.error presente  → el cliente reporta un error
@@ -17,28 +20,26 @@ use Illuminate\Support\Facades\Log;
  *   - action=data_exchange → el usuario envió una pantalla
  *   - action=BACK          → el usuario volvió atrás
  *
- * Las respuestas de INIT/data_exchange devuelven el nombre de la siguiente
- * pantalla y los datos con que renderizarla.
- *
- * PENDIENTE: las pantallas concretas del Flow de inscripción se definen
- * cuando exista el número de WhatsApp y se arme el Flow en el Builder de
- * WhatsApp Manager. Hoy este router responde correctamente a health checks y
- * errores, y deja el data_exchange preparado con un ejemplo de inscripción a
- * cursos que hay que ajustar a los nombres reales de las pantallas.
+ * Los nombres de pantalla siguen el plan de implementación
+ * (docs/whatsapp_flows_plan.md) y deben coincidir EXACTAMENTE con los del
+ * Flow JSON publicado en WhatsApp Manager.
  */
 class FlowRouterService
 {
-    /**
-     * Pantalla especial de Meta que cierra el Flow.
-     * No se define en el Flow JSON: es un identificador reservado.
-     */
+    /** Pantalla reservada de Meta que cierra el Flow. */
     private const SCREEN_SUCCESS = 'SUCCESS';
 
+    public const SCREEN_WELCOME       = 'BIENVENIDA';
+    public const SCREEN_CITY          = 'CITY_SELECTION';
+    public const SCREEN_COURSE_INFO   = 'COURSE_INFO';
+    public const SCREEN_CONFIRMATION  = 'INTEREST_CONFIRMATION';
+    public const SCREEN_PAYMENT       = 'PAYMENT_INFO';
+
+    public function __construct(private readonly TicketService $tickets) {}
+
     /**
-     * Punto de entrada. Recibe el cuerpo ya descifrado.
-     *
      * @param  array<string, mixed> $body
-     * @return array<string, mixed>  Respuesta a cifrar y devolver.
+     * @return array<string, mixed>
      */
     public function handle(array $body): array
     {
@@ -46,59 +47,52 @@ class FlowRouterService
         $version = (string) ($body['version'] ?? '3.0');
 
         // El health check va primero: es el más frecuente y el más barato.
-        // Si no respondemos esto, Meta marca el Flow como no saludable y deja
-        // de entregarlo a los usuarios.
+        // Sin responderlo, Meta marca el Flow como no saludable y deja de
+        // entregarlo a los usuarios.
         if ($action === 'ping') {
-            return [
-                'version' => $version,
-                'data'    => ['status' => 'active'],
-            ];
+            return ['version' => $version, 'data' => ['status' => 'active']];
         }
 
-        // Errores reportados por el cliente de WhatsApp. Solo hay que
-        // acusar recibo, pero conviene loguearlos: aquí aparecen problemas
-        // como 'public-key-missing' que exigen resubir la clave.
+        // Errores del cliente de WhatsApp. Solo hay que acusar recibo, pero
+        // conviene loguearlos: aquí aparecen cosas como 'public-key-missing'
+        // que exigen resubir la clave con `php artisan flows:upload-key`.
         if (isset($body['data']['error'])) {
             Log::warning('[Flows] Error reportado por el cliente', [
-                'error'       => $body['data']['error'] ?? null,
+                'error'         => $body['data']['error'] ?? null,
                 'error_message' => $body['data']['error_message'] ?? null,
-                'screen'      => $body['screen'] ?? null,
-                'flow_token'  => $body['flow_token'] ?? null,
+                'screen'        => $body['screen'] ?? null,
+                'flow_token'    => $body['flow_token'] ?? null,
             ]);
 
-            return [
-                'version' => $version,
-                'data'    => ['acknowledged' => true],
-            ];
+            return ['version' => $version, 'data' => ['acknowledged' => true]];
         }
 
         return match ($action) {
-            'INIT'          => $this->pantallaInicial($version),
-            'BACK'          => $this->pantallaInicial($version),
+            'INIT', 'BACK'  => $this->pantallaCiudades($version),
             'data_exchange' => $this->procesarPantalla($body, $version),
-            default         => $this->respuestaError($version, "Acción no soportada: {$action}"),
+            default         => $this->cerrarConError($version, "Acción no soportada: {$action}"),
         };
     }
 
     /**
-     * Primera pantalla al abrir el Flow.
+     * Primera pantalla: elegir ciudad.
+     *
+     * Las ciudades salen de las plantillas activas con precio cargado. Si una
+     * ciudad no tiene plantilla activa (el caso de Margarita "en desarrollo"),
+     * simplemente no aparece — sin tocar el Flow JSON.
      *
      * @return array<string, mixed>
      */
-    private function pantallaInicial(string $version): array
+    private function pantallaCiudades(string $version): array
     {
         return [
             'version' => $version,
-            'screen'  => 'SELECCION_CIUDAD',
-            'data'    => [
-                'ciudades' => $this->opcionesCiudad(),
-            ],
+            'screen'  => self::SCREEN_CITY,
+            'data'    => ['ciudades' => $this->ciudadesDisponibles()],
         ];
     }
 
     /**
-     * El usuario envió una pantalla: decidir la siguiente.
-     *
      * @param  array<string, mixed> $body
      * @return array<string, mixed>
      */
@@ -108,110 +102,231 @@ class FlowRouterService
         $data   = is_array($body['data'] ?? null) ? $body['data'] : [];
 
         return match ($screen) {
-            'SELECCION_CIUDAD' => [
-                'version' => $version,
-                'screen'  => 'SELECCION_CURSO',
-                'data'    => [
-                    'cursos' => $this->opcionesCurso((string) ($data['ciudad'] ?? '')),
-                    // Se arrastra la ciudad para tenerla disponible al cerrar
-                    // el Flow sin volver a preguntarla.
-                    'ciudad' => $data['ciudad'] ?? null,
-                ],
-            ],
-
-            'SELECCION_CURSO' => [
-                'version' => $version,
-                'screen'  => 'DATOS_CONTACTO',
-                'data'    => [
-                    'ciudad' => $data['ciudad'] ?? null,
-                    'curso'  => $data['curso'] ?? null,
-                ],
-            ],
-
-            // Última pantalla: cerrar el Flow.
-            //
-            // El contenido de 'params' es lo que llega después por webhook
-            // como nfm_reply, y es donde se crea el Contact + Ticket.
-            // Esa parte vive en el webhook, no aquí, porque Meta considera
-            // el Flow terminado en cuanto respondemos SUCCESS.
-            'DATOS_CONTACTO' => [
-                'version' => $version,
-                'screen'  => self::SCREEN_SUCCESS,
-                'data'    => [
-                    'extension_message_response' => [
-                        'params' => [
-                            'flow_token' => $body['flow_token'] ?? null,
-                            'ciudad'     => $data['ciudad'] ?? null,
-                            'curso'      => $data['curso'] ?? null,
-                            'nombre'     => $data['nombre'] ?? null,
-                            'telefono'   => $data['telefono'] ?? null,
-                        ],
-                    ],
-                ],
-            ],
-
-            default => $this->respuestaError($version, "Pantalla desconocida: {$screen}"),
+            self::SCREEN_WELCOME      => $this->pantallaCiudades($version),
+            self::SCREEN_CITY         => $this->infoDelCurso($data, $version),
+            self::SCREEN_COURSE_INFO  => $this->ramaSegunInteres($body, $data, $version),
+            self::SCREEN_CONFIRMATION => $this->confirmarInteres($body, $data, $version),
+            default                   => $this->cerrarConError($version, "Pantalla desconocida: {$screen}"),
         };
     }
 
     /**
-     * Ciudades donde Reino Aromas dicta cursos.
+     * Pantalla 3: información del curso en la ciudad elegida.
      *
-     * Formato que exige Flow JSON para un Dropdown: id + title.
+     * Lee de Template, nunca de valores hardcodeados: si suben el precio de
+     * Caracas se actualiza en un solo lugar.
      *
-     * @return list<array{id: string, title: string}>
+     * @param  array<string, mixed> $data
+     * @return array<string, mixed>
      */
-    private function opcionesCiudad(): array
+    private function infoDelCurso(array $data, string $version): array
     {
+        $ciudad = (string) ($data['ciudad'] ?? '');
+
+        $template = $this->plantillaDeCiudad($ciudad);
+
+        if ($template === null) {
+            // Ciudad sin fechas disponibles: se devuelve a la misma pantalla
+            // con el mensaje, en vez de cerrar el Flow.
+            return [
+                'version' => $version,
+                'screen'  => self::SCREEN_CITY,
+                'data'    => [
+                    'ciudades'      => $this->ciudadesDisponibles(),
+                    'error_message' => 'Esa ciudad no tiene fechas disponibles por ahora. Escríbenos y te avisamos.',
+                ],
+            ];
+        }
+
         return [
-            ['id' => 'caracas',      'title' => 'Caracas'],
-            ['id' => 'valencia',     'title' => 'Valencia'],
-            ['id' => 'barquisimeto', 'title' => 'Barquisimeto'],
-            ['id' => 'maracay',      'title' => 'Maracay'],
-            ['id' => 'margarita',    'title' => 'Margarita'],
+            'version' => $version,
+            'screen'  => self::SCREEN_COURSE_INFO,
+            'data'    => [
+                'ciudad'          => $ciudad,
+                'ciudad_nombre'   => ucfirst($ciudad),
+                // Se mandan como string ya formateado: los componentes de texto
+                // del Flow JSON no formatean números.
+                'precio'          => $template->price !== null ? '$' . rtrim(rtrim((string) $template->price, '0'), '.') : 'Consultar',
+                'reserva'         => $template->deposit !== null ? '$' . rtrim(rtrim((string) $template->deposit, '0'), '.') : '$20',
+                'incluye'         => $template->includes ?? 'Materiales e insumos para practicar.',
+                'horario'         => $template->schedule ?? '10:00 am a 6:00 pm',
+                'frecuencia'      => $template->visit_frequency ?? '',
+            ],
         ];
     }
 
     /**
-     * Cursos disponibles en una ciudad.
+     * Pantalla 4: el usuario indicó si está interesado o solo quería info.
      *
-     * PENDIENTE: hoy devuelve un catálogo fijo. Cuando exista una tabla de
-     * cursos con fechas y cupos, esto debe consultarla — es justamente la
-     * razón de tener un endpoint en vez de un Flow estático.
-     *
-     * Los precios reales por ciudad están en los seeders de plantillas.
-     *
-     * @return list<array{id: string, title: string}>
+     * @param  array<string, mixed> $body
+     * @param  array<string, mixed> $data
+     * @return array<string, mixed>
      */
-    private function opcionesCurso(string $ciudad): array
+    private function ramaSegunInteres(array $body, array $data, string $version): array
     {
-        $precios = [
-            'caracas'      => 130,
-            'valencia'     => 110,
-            'barquisimeto' => 110,
-            'maracay'      => 110,
-            'margarita'    => 250,
-        ];
+        $interesado = filter_var($data['interesado'] ?? false, FILTER_VALIDATE_BOOL);
 
-        $precio = $precios[$ciudad] ?? 130;
+        if (! $interesado) {
+            // Rama B: cierre cordial. El ticket queda con prioridad media,
+            // que es la que ya tiene por defecto — no hay que tocarlo.
+            $this->calificar($body, $data, interesado: false);
 
+            return [
+                'version' => $version,
+                'screen'  => self::SCREEN_SUCCESS,
+                'data'    => [
+                    'extension_message_response' => [
+                        'params' => ['resultado' => 'solo_info'],
+                    ],
+                ],
+            ];
+        }
+
+        // Rama A: pedir confirmación antes de crear el ticket caliente.
         return [
-            ['id' => 'velas',     'title' => "Velas Artesanales — \${$precio}"],
-            ['id' => 'jabones',   'title' => "Jabones Artesanales — \${$precio}"],
-            ['id' => 'difusores', 'title' => "Difusores — \${$precio}"],
-            ['id' => 'sales',     'title' => "Sales Aromáticas — \${$precio}"],
+            'version' => $version,
+            'screen'  => self::SCREEN_CONFIRMATION,
+            'data'    => [
+                'ciudad' => $data['ciudad'] ?? null,
+            ],
         ];
     }
 
     /**
-     * Respuesta ante una pantalla o acción que no reconocemos.
+     * Pantalla 5: el usuario confirmó interés → ticket en prioridad muy alta.
      *
-     * Se cierra el Flow en vez de dejarlo colgado: para el usuario es mejor
-     * que se cierre y le escriba un agente, a que la pantalla quede girando.
+     * @param  array<string, mixed> $body
+     * @param  array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function confirmarInteres(array $body, array $data, string $version): array
+    {
+        $ticket = $this->calificar($body, $data, interesado: true);
+
+        $reserva = $this->plantillaDeCiudad((string) ($data['ciudad'] ?? ''))?->deposit;
+
+        return [
+            'version' => $version,
+            'screen'  => self::SCREEN_SUCCESS,
+            'data'    => [
+                'extension_message_response' => [
+                    'params' => [
+                        'resultado'     => 'interesado',
+                        'ticket_id'     => $ticket?->id,
+                        'monto_reserva' => $reserva !== null ? (float) $reserva : 20.0,
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Actualiza el ticket de la conversación según el interés declarado.
+     *
+     * El ticket YA existe: lo creó `ensureTicketExists()` al llegar el primer
+     * mensaje. Aquí solo se califica, no se crea — así un Flow abandonado a
+     * medias deja igualmente el lead en la bandeja.
+     *
+     * @param array<string, mixed> $body
+     * @param array<string, mixed> $data
+     */
+    private function calificar(array $body, array $data, bool $interesado): ?\App\Models\Ticket
+    {
+        $conversation = $this->conversacionDelToken((string) ($body['flow_token'] ?? ''));
+
+        if ($conversation?->ticket === null) {
+            Log::warning('[Flows] No se encontró el ticket para calificar', [
+                'flow_token' => $body['flow_token'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        $extra = [];
+
+        if (! empty($data['ciudad'])) {
+            $extra['city'] = $data['ciudad'];
+        }
+
+        if (! empty($data['curso'])) {
+            $extra['course_interest'] = $data['curso'];
+        }
+
+        return $this->tickets->qualifyAutomatically(
+            ticket:   $conversation->ticket,
+            status:   $interesado ? 'interesado' : 'nuevo',
+            // La regla la definió el cliente: interacción alta = muy alta.
+            priority: $interesado ? 'muy_alta' : 'media',
+            origen:   'whatsapp_flow',
+            extra:    $extra,
+        );
+    }
+
+    /**
+     * Resuelve la conversación a partir del flow_token.
+     *
+     * El token se genera al enviar el Flow (SendWhatsAppFlowJob) y Meta lo
+     * devuelve en cada request, así que es el único vínculo entre la sesión
+     * del Flow y el CRM.
+     */
+    private function conversacionDelToken(string $token): ?Conversation
+    {
+        if ($token === '') {
+            return null;
+        }
+
+        return Conversation::query()
+            ->forFlowToken($token)
+            ->with('ticket')
+            ->first();
+    }
+
+    /**
+     * Ciudades con plantilla activa y precio cargado.
+     *
+     * Formato que exige Flow JSON para RadioButtonsGroup: id + title.
+     *
+     * @return list<array{id: string, title: string}>
+     */
+    private function ciudadesDisponibles(): array
+    {
+        return Template::query()
+            ->active()
+            ->whereNotNull('city')
+            ->whereNotNull('price')
+            ->orderBy('city')
+            ->get()
+            ->unique('city')
+            ->map(fn (Template $t): array => [
+                'id'    => (string) $t->city,
+                'title' => ucfirst((string) $t->city),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function plantillaDeCiudad(string $ciudad): ?Template
+    {
+        if ($ciudad === '') {
+            return null;
+        }
+
+        return Template::query()
+            ->active()
+            ->where('city', $ciudad)
+            ->whereNotNull('price')
+            ->first();
+    }
+
+    /**
+     * Cierra el Flow ante una request que no reconocemos.
+     *
+     * Para el usuario es mejor que se cierre y le escriba un agente, a que la
+     * pantalla se quede girando.
      *
      * @return array<string, mixed>
      */
-    private function respuestaError(string $version, string $motivo): array
+    private function cerrarConError(string $version, string $motivo): array
     {
         Log::error('[Flows] Request no manejada', ['motivo' => $motivo]);
 
