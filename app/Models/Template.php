@@ -18,6 +18,8 @@ class Template extends Model
         'name',
         'body',
         'city',
+        'channel',
+        'category',
         'meta_template_name',
         'is_active',
     ];
@@ -28,8 +30,29 @@ class Template extends Model
     protected function casts(): array
     {
         return [
-            'is_active' => 'boolean',
+            'is_active'    => 'boolean',
+            'usage_count'  => 'integer',
+            'last_used_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Plantillas de un canal concreto más las genéricas (channel NULL).
+     *
+     * Mismo criterio que scopeForCity: NULL significa "sirve para todos".
+     *
+     * @param Builder<Template> $query
+     * @return Builder<Template>
+     */
+    public function scopeForChannel(Builder $query, ?string $channel): Builder
+    {
+        return $query->where(function (Builder $query) use ($channel): void {
+            $query->whereNull('channel');
+
+            if ($channel !== null) {
+                $query->orWhere('channel', $channel);
+            }
+        });
     }
 
     /**

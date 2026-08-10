@@ -8,6 +8,7 @@
     import Home from '../../icons/icon.home.vue'
     import Message from '../../icons/icon.chat.vue'
     import Users from '../../icons/icon.users.vue'
+    import Comments from '../../icons/icon.comments.vue'
     import Chart from '../../icons/icon.chart.vue'
     import User from '../../icons/icon.user.vue'
     import Gear from '../../icons/icon.setting.vue'
@@ -75,6 +76,7 @@
             <!-- Sistema -->
             <nav class="flex flex-col gap-0.5 mt-auto pt-4 border-t border-primary/8">
                 <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Sistema</p>
+                <button class="nav-item" @click="goTo('Templates')"><Comments /><span>Plantillas</span></button>
                 <button class="nav-item" @click="goTo('Users')"><Users /><span>Administradores</span></button>
                 <button class="nav-item" @click="goTo('Accounts')"><User /><span>Mi Perfil</span></button>
                 <button class="nav-item" @click="goTo('Accounts')"><Gear /><span>Ajustes</span></button>
@@ -113,6 +115,7 @@
                         <button @click="goTo('Messages Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Message /><span>Mensajería</span></button>
                         <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
                         <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Chart /><span>Reportes</span></button>
+                        <button @click="goTo('Templates')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Comments /><span>Plantillas</span></button>
                     </nav>
                     <footer v-if="user" class="mt-auto border-t border-primary/10 pt-4 flex items-center gap-2 p-2">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold">

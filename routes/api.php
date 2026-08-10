@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Webhooks\WhatsAppWebhookController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
 use App\Http\Controllers\Facebook\FacebookMessageController;
 use App\Http\Controllers\Facebook\FacebookPostController;
+use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserController;
 use App\Models\Conversation;
 use Illuminate\Http\Request;
@@ -81,6 +82,32 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::post('/users', [UserController::class, 'store'])->name('api.users.store');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('api.users.update');
     Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('api.users.toggle-active');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Plantillas de respuesta rápida
+    |
+    | El gestor (/app/settings/templates) consume el CRUD; el selector dentro
+    | del chat usa forConversation + markUsed.
+    |
+    | OJO con el orden: /templates/preview va ANTES de las rutas con
+    | {template}, o Laravel intentaría resolver "preview" como un ID y
+    | devolvería 404.
+    |-------------------------------------------------------------------------
+    */
+    Route::post('/templates/preview', [TemplateController::class, 'preview'])->name('api.templates.preview');
+
+    Route::get('/templates', [TemplateController::class, 'index'])->name('api.templates.index');
+    Route::post('/templates', [TemplateController::class, 'store'])->name('api.templates.store');
+    Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('api.templates.update');
+    Route::delete('/templates/{template}', [TemplateController::class, 'destroy'])->name('api.templates.destroy');
+    Route::patch('/templates/{template}/toggle-active', [TemplateController::class, 'toggleActive'])->name('api.templates.toggle-active');
+    Route::post('/templates/{template}/use', [TemplateController::class, 'markUsed'])->name('api.templates.use');
+
+    // Plantillas aplicables a una conversación, ya renderizadas con los datos
+    // del contacto. Vive fuera del prefijo /meta porque no depende de Meta.
+    Route::get('/conversations/{conversation}/templates', [TemplateController::class, 'forConversation'])
+        ->name('api.conversations.templates');
 
     /*
     |=========================================================================

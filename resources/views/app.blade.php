@@ -9,7 +9,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>{{ config('app.name', 'Reino Aromas') }}</title>
-    <link rel="icon" href="/favicon.ico">
+    {{-- Favicon generado desde el logo de marca (public/assets/img/logo.png).
+         El .ico lleva 16/32/48 embebidos, así que un solo enlace basta. --}}
+    <link rel="icon" href="/favicon.ico" sizes="any">
 
     {{-- Vite inyecta aquí el CSS y el módulo JS del Vue.
          En dev: apunta al dev server (:5173) con HMR.
