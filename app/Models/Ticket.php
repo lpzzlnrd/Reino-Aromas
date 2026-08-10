@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasActivityLogs;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -10,7 +11,75 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Ticket extends Model
 {
+    use HasActivityLogs;
     use SoftDeletes;
+
+    // Estados y prioridades EN ESPAÑOL: así están los enum en la migración de
+    // tickets y así los escribe TicketService. No confundir con los enum de
+    // messages, que sí están en inglés.
+    public const STATUS_NUEVO          = 'nuevo';
+    public const STATUS_INTERESADO     = 'interesado';
+    public const STATUS_ALTA_PRIORIDAD = 'alta_prioridad';
+    public const STATUS_EN_SEGUIMIENTO = 'en_seguimiento';
+    public const STATUS_RESERVADO      = 'reservado';
+    public const STATUS_CERRADO        = 'cerrado';
+
+    public const PRIORITY_BAJA     = 'baja';
+    public const PRIORITY_MEDIA    = 'media';
+    public const PRIORITY_ALTA     = 'alta';
+    public const PRIORITY_MUY_ALTA = 'muy_alta';
+
+    /**
+     * Etiquetas que espera el enum CaseStatus.ts del frontend.
+     *
+     * El Vue compara por el valor literal ('Urgente', 'En seguimiento'…), así
+     * que este mapa es el contrato con la UI. Ojo con 'alta_prioridad' →
+     * 'Urgente': es el único par donde la etiqueta no es la traducción directa
+     * del estado, y por eso vive aquí en vez de derivarse con str_replace.
+     *
+     * @return array<string, string>
+     */
+    public static function statusLabels(): array
+    {
+        return [
+            self::STATUS_NUEVO          => 'Nuevo',
+            self::STATUS_INTERESADO     => 'Interesado',
+            self::STATUS_ALTA_PRIORIDAD => 'Urgente',
+            self::STATUS_EN_SEGUIMIENTO => 'En seguimiento',
+            self::STATUS_RESERVADO      => 'Reservado',
+            self::STATUS_CERRADO        => 'Cerrado',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function statuses(): array
+    {
+        return array_keys(self::statusLabels());
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function priorities(): array
+    {
+        return [
+            self::PRIORITY_BAJA,
+            self::PRIORITY_MEDIA,
+            self::PRIORITY_ALTA,
+            self::PRIORITY_MUY_ALTA,
+        ];
+    }
+
+    /**
+     * Etiqueta de este ticket para el frontend. 'Nuevo' como respaldo si la
+     * columna trae un valor inesperado.
+     */
+    public function statusLabel(): string
+    {
+        return self::statusLabels()[$this->status] ?? 'Nuevo';
+    }
 
     protected $fillable = [
         'conversation_id',

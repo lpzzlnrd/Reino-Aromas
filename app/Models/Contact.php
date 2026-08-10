@@ -11,6 +11,25 @@ class Contact extends Model
 {
     use SoftDeletes;
 
+    // Canales soportados. Los valores coinciden EXACTAMENTE con el enum de la
+    // columna `channel` en la migración de contacts; cambiar uno aquí sin
+    // migrar la tabla provoca un error de truncado al guardar.
+    public const CHANNEL_WHATSAPP  = 'whatsapp';
+    public const CHANNEL_INSTAGRAM = 'instagram';
+    public const CHANNEL_FACEBOOK  = 'facebook';
+
+    /**
+     * @return list<string>
+     */
+    public static function channels(): array
+    {
+        return [
+            self::CHANNEL_WHATSAPP,
+            self::CHANNEL_INSTAGRAM,
+            self::CHANNEL_FACEBOOK,
+        ];
+    }
+
     protected $fillable = [
         'channel',
         'channel_id',

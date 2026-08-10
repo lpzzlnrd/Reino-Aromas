@@ -9,6 +9,7 @@ import SettingsAccounts         from "./components/layouts/settings/settings.acc
 import UserStatus               from "./components/layouts/settings/settings.updateStatus.vue";
 import UsersHome                from "./components/layouts/users/users.home.vue";
 import TemplatesHome            from "./components/layouts/templates/templates.home.vue";
+import ClientsHome              from "./components/layouts/clients/clients.home.vue";
 
 /**
  * Rutas de la SPA Vue.
@@ -47,6 +48,14 @@ const router = createRouter({
                             meta: { title: "Mensajes" },
                         },
                     ],
+                },
+                {
+                    // Clientes va al mismo nivel que messages y no bajo
+                    // settings: es operación diaria, no configuración.
+                    path: "clients",
+                    name: "Clients",
+                    component: ClientsHome,
+                    meta: { title: "Clientes" },
                 },
                 {
                     path: "settings",
