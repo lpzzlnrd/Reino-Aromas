@@ -237,6 +237,12 @@ class TemplateController extends Controller
             'channel'            => $template->channel,
             'category'           => $template->category,
             'is_active'          => $template->is_active,
+            // Datos del curso que consume el endpoint de WhatsApp Flows.
+            'price'              => $template->price,
+            'deposit'            => $template->deposit,
+            'includes'           => $template->includes,
+            'visit_frequency'    => $template->visit_frequency,
+            'schedule'           => $template->schedule,
             'usage_count'        => $template->usage_count,
             'last_used_at'       => $template->last_used_at?->toIso8601String(),
             'meta_template_name' => $template->meta_template_name,

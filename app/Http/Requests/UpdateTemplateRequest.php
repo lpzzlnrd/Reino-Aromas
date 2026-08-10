@@ -34,6 +34,13 @@ class UpdateTemplateRequest extends FormRequest
             'category'  => ['nullable', 'string', 'max:60'],
             'is_active' => ['boolean'],
             'meta_template_name' => ['nullable', 'string', 'max:255', 'regex:/^[a-z0-9_]+$/'],
+
+            // Datos del curso que consume el endpoint de WhatsApp Flows.
+            'price'           => ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'deposit'         => ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'includes'        => ['nullable', 'string', 'max:1000'],
+            'visit_frequency' => ['nullable', 'string', 'max:80'],
+            'schedule'        => ['nullable', 'string', 'max:80'],
         ];
     }
 

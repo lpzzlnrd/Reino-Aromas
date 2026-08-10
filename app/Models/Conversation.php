@@ -19,7 +19,22 @@ class Conversation extends Model
     protected $casts = [
         'last_message_at'    => 'datetime',
         'within_24h_window'  => 'boolean',
+        'flow_sent_at'       => 'datetime',
     ];
+
+    /**
+     * Conversación cuya sesión de Flow corresponde a este token.
+     *
+     * El endpoint de Flows la usa para resolver a qué contacto pertenece cada
+     * request del canal de datos.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Conversation> $query
+     * @return \Illuminate\Database\Eloquent\Builder<Conversation>
+     */
+    public function scopeForFlowToken(\Illuminate\Database\Eloquent\Builder $query, string $token): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('flow_token', $token);
+    }
 
     public function contact(): BelongsTo
     {
