@@ -11,6 +11,7 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
 use App\Http\Controllers\Facebook\FacebookPostController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
@@ -162,6 +163,19 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('api.tickets.show');
     Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])->name('api.tickets.update');
     Route::put('/tickets/{ticket}/tags', [TicketController::class, 'syncTags'])->name('api.tickets.tags');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Reportes del panel de control
+    |
+    | /reports/summary trae los cuatro bloques del dashboard en una sola
+    | llamada: cuatro requests en paralelo al montar la vista solo suman
+    | latencia y parpadeo.
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/reports/summary', [ReportController::class, 'summary'])->name('api.reports.summary');
+    Route::get('/reports/by-city', [ReportController::class, 'byCity'])->name('api.reports.by-city');
+    Route::get('/reports/activity', [ReportController::class, 'activity'])->name('api.reports.activity');
 
     /*
     |-------------------------------------------------------------------------
