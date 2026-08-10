@@ -62,10 +62,15 @@ Route::prefix('webhooks')->group(function (): void {
 |   1. firma HMAC en X-Hub-Signature-256 (responde 432 si no valida)
 |   2. cifrado híbrido RSA + AES-GCM (responde 421 si no descifra)
 |
+| Se agrupa bajo /webhooks para que toda la superficie pública que llama Meta
+| viva bajo el mismo prefijo — así una regla de nginx o un rate-limit futuro
+| cubre todo de una vez. Técnicamente NO es un webhook (es un canal
+| bidireccional), de ahí el segmento 'flows' que lo distingue.
+|
 | Esta URL se configura en el Flow Builder de WhatsApp Manager.
 |-----------------------------------------------------------------------------
 */
-Route::post('flows/endpoint', FlowEndpointController::class)->name('flows.endpoint');
+Route::post('webhooks/flows', FlowEndpointController::class)->name('webhooks.flows');
 
 /*
 |-----------------------------------------------------------------------------

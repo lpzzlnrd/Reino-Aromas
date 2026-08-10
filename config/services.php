@@ -58,6 +58,27 @@ return [
         'flows' => [
             'private_key' => env('FLOWS_PRIVATE_KEY'),
             'passphrase'  => env('FLOWS_PASSPHRASE', ''),
+
+            /*
+            |------------------------------------------------------------------
+            | Flow de bienvenida
+            |
+            | Se envía solo cuando escribe un contacto nuevo, reemplazando el
+            | saludo y la pregunta de ciudad que hoy manda un agente a mano.
+            |
+            | Si FLOWS_WELCOME_ID está vacío el disparo queda DESACTIVADO y
+            | todo sigue funcionando como hoy: el ticket se crea y un agente
+            | atiende. Eso permite desplegar este código antes de tener el Flow
+            | publicado en Meta.
+            |------------------------------------------------------------------
+            */
+            'welcome_flow_id'     => env('FLOWS_WELCOME_ID'),
+            'welcome_cta'         => env('FLOWS_WELCOME_CTA', 'Ver cursos'),
+            'welcome_first_screen' => env('FLOWS_WELCOME_FIRST_SCREEN', 'BIENVENIDA'),
+            'welcome_body'        => env(
+                'FLOWS_WELCOME_BODY',
+                '¡Hola! 🕯️ Bienvenido a Reino Aromas. Toca el botón para ver nuestros cursos y precios en tu ciudad.'
+            ),
         ],
     ],
 
