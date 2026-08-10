@@ -36,6 +36,7 @@ return [
     ],
 
     'meta' => [
+        'app_id'               => env('META_APP_ID'),
         'app_secret'           => env('META_APP_SECRET'),
         'access_token'         => env('META_ACCESS_TOKEN'),
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
@@ -59,6 +60,11 @@ return [
         'facebook' => [
             'page_id'           => env('META_FACEBOOK_PAGE_ID'),
             'page_access_token' => env('META_FACEBOOK_PAGE_ACCESS_TOKEN'),
+
+            // Solo para el flujo OAuth de vinculación de la Página
+            // (GET /api/meta/facebook/auth-url). Debe coincidir EXACTAMENTE
+            // con la URI registrada en el dashboard de Meta.
+            'redirect_uri'      => env('FACEBOOK_REDIRECT_URI'),
         ],
 
         /*
