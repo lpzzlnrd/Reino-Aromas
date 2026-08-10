@@ -70,12 +70,11 @@
                 <button class="nav-item" @click="goTo('Dashboard Home')"><Home /><span>Dashboard</span></button>
                 <button class="nav-item" @click="goTo('Messages Home')"><Message /><span>Mensajería</span></button>
 
-                <!-- Clientes y Reportes: pendientes de vista propia. Se dejan
-                     deshabilitados en vez de apuntar al Dashboard, que hacía
-                     parecer que el botón estaba roto. -->
-                <button class="nav-item opacity-40 cursor-not-allowed" disabled title="Próximamente">
-                    <Users /><span>Clientes</span>
-                </button>
+                <button class="nav-item" @click="goTo('Clients')"><Users /><span>Clientes</span></button>
+
+                <!-- Reportes: pendiente de vista propia. Se deja deshabilitado
+                     en vez de apuntar al Dashboard, que hacía parecer que el
+                     botón estaba roto. -->
                 <button class="nav-item opacity-40 cursor-not-allowed" disabled title="Próximamente">
                     <Chart /><span>Reportes</span>
                 </button>
@@ -121,7 +120,7 @@
                     <nav class="flex flex-col gap-1 flex-1">
                         <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Home /><span>Dashboard</span></button>
                         <button @click="goTo('Messages Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Message /><span>Mensajería</span></button>
-                        <button disabled title="Próximamente" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl opacity-40 cursor-not-allowed"><Users /><span>Clientes</span></button>
+                        <button @click="goTo('Clients')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
                         <button disabled title="Próximamente" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl opacity-40 cursor-not-allowed"><Chart /><span>Reportes</span></button>
                         <button @click="goTo('Templates')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Comments /><span>Plantillas</span></button>
                     </nav>
