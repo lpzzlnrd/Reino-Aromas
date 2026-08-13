@@ -8,7 +8,9 @@ use App\Models\ActivityLog;
 use App\Models\Contact;
 use App\Models\Conversation;
 use App\Models\Ticket;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -28,19 +30,33 @@ class ReportController extends MetaBaseController
     /**
      * GET /api/reports/summary
      *
-     * Todo lo que el dashboard necesita en UNA llamada.
+     * Todo lo que el panel y la vista de Reportes necesitan en UNA llamada.
      *
-     * Se agrupa a propósito en un solo endpoint: el panel pinta cuatro bloques
-     * a la vez y cuatro requests en paralelo al montar la vista solo agregan
+     * Se agrupa a propósito en un solo endpoint: se pintan varios bloques a la
+     * vez y otros tantos requests en paralelo al montar la vista solo agregan
      * latencia y parpadeo.
+     *
+     * Filtro opcional por rango: ?from=YYYY-MM-DD&to=YYYY-MM-DD. Sin él se
+     * cuenta todo el histórico, que es como se comportaba antes — el dashboard
+     * lo llama sin parámetros y no cambia.
      */
-    public function summary(): JsonResponse
+    public function summary(Request $request): JsonResponse
     {
+        [$desde, $hasta] = $this->rango($request);
+
         return response()->json([
-            'by_status'  => $this->conteosPorEstado(),
-            'by_city'    => $this->distribucionPorCiudad(),
-            'by_channel' => $this->distribucionPorCanal(),
-            'totals'     => $this->totales(),
+            'by_status'   => $this->conteosPorEstado($desde, $hasta),
+            'by_city'     => $this->distribucionPorCiudad($desde, $hasta),
+            'by_channel'  => $this->distribucionPorCanal($desde, $hasta),
+            'by_priority' => $this->distribucionPorPrioridad($desde, $hasta),
+            'by_course'   => $this->distribucionPorCurso($desde, $hasta),
+            'totals'      => $this->totales($desde, $hasta),
+            // El front lo muestra al pie ("datos del 1 al 31 de agosto") para
+            // que no se lea un número filtrado como si fuera el total.
+            'range'       => [
+                'from' => $desde?->toDateString(),
+                'to'   => $hasta?->toDateString(),
+            ],
         ]);
     }
 
@@ -49,9 +65,66 @@ class ReportController extends MetaBaseController
      *
      * Clientes y tickets por sede. Alimenta dashboard.cities.vue.
      */
-    public function byCity(): JsonResponse
+    public function byCity(Request $request): JsonResponse
     {
-        return response()->json($this->distribucionPorCiudad());
+        [$desde, $hasta] = $this->rango($request);
+
+        return response()->json($this->distribucionPorCiudad($desde, $hasta));
+    }
+
+    /**
+     * Rango de fechas del request, ya normalizado.
+     *
+     * `to` se lleva al final del día: con ?to=2026-08-13 el usuario espera que
+     * incluya lo de ese día, no que corte a la medianoche. Una fecha inválida
+     * se ignora en vez de reventar — el reporte cae al histórico completo.
+     *
+     * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable}
+     */
+    private function rango(Request $request): array
+    {
+        $parse = function (?string $valor, bool $finDelDia): ?CarbonImmutable {
+            if ($valor === null || $valor === '') {
+                return null;
+            }
+
+            try {
+                $fecha = CarbonImmutable::parse($valor);
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return $finDelDia ? $fecha->endOfDay() : $fecha->startOfDay();
+        };
+
+        $desde = $parse($request->query('from'), false);
+        $hasta = $parse($request->query('to'), true);
+
+        // Invertidos: se corrigen en vez de devolver un reporte vacío que
+        // parecería "no hay datos".
+        if ($desde !== null && $hasta !== null && $desde->greaterThan($hasta)) {
+            return [$hasta->startOfDay(), $desde->endOfDay()];
+        }
+
+        return [$desde, $hasta];
+    }
+
+    /**
+     * Aplica el rango a una consulta, si lo hay.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
+     */
+    private function enRango(
+        \Illuminate\Database\Eloquent\Builder $query,
+        ?CarbonImmutable $desde,
+        ?CarbonImmutable $hasta,
+        string $columna = 'created_at',
+    ): \Illuminate\Database\Eloquent\Builder {
+        return $query
+            ->when($desde !== null, fn ($q) => $q->where($columna, '>=', $desde))
+            ->when($hasta !== null, fn ($q) => $q->where($columna, '<=', $hasta));
     }
 
     /**
@@ -62,12 +135,22 @@ class ReportController extends MetaBaseController
      * textos de compras y pagos — funcionalidad que está fuera de alcance y
      * no existe en el sistema.
      */
-    public function activity(): JsonResponse
+    public function activity(Request $request): JsonResponse
     {
-        $logs = ActivityLog::query()
-            ->with('causer:id,name,avatar_url')
+        [$desde, $hasta] = $this->rango($request);
+
+        // El límite es configurable porque el dashboard muestra un resumen
+        // corto y la vista de Reportes una lista larga. Se topa en 100 para que
+        // un ?limit=99999 no traiga la tabla entera.
+        $limite = min(max((int) $request->query('limit', '15'), 1), 100);
+
+        $logs = $this->enRango(
+            ActivityLog::query()->with('causer:id,name,avatar_url'),
+            $desde,
+            $hasta,
+        )
             ->latest('created_at')
-            ->limit(15)
+            ->limit($limite)
             ->get();
 
         return response()->json(
@@ -92,9 +175,9 @@ class ReportController extends MetaBaseController
      *
      * @return array<string, int>
      */
-    private function conteosPorEstado(): array
+    private function conteosPorEstado(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
     {
-        $porEstado = Ticket::query()
+        $porEstado = $this->enRango(Ticket::query(), $desde, $hasta)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -116,15 +199,18 @@ class ReportController extends MetaBaseController
      *
      * @return list<array<string, mixed>>
      */
-    private function distribucionPorCiudad(): array
+    private function distribucionPorCiudad(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
     {
-        $contactosPorCiudad = Contact::query()
+        // Los contactos se filtran por first_seen_at y no por created_at: la
+        // pregunta del reporte es "cuándo entró este cliente", que es lo que
+        // marca esa columna.
+        $contactosPorCiudad = $this->enRango(Contact::query(), $desde, $hasta, 'first_seen_at')
             ->selectRaw('city, COUNT(*) as total')
             ->whereNotNull('city')
             ->groupBy('city')
             ->pluck('total', 'city');
 
-        $ticketsPorCiudad = Ticket::query()
+        $ticketsPorCiudad = $this->enRango(Ticket::query(), $desde, $hasta)
             ->selectRaw('city, COUNT(*) as total')
             ->whereNotNull('city')
             ->groupBy('city')
@@ -159,9 +245,9 @@ class ReportController extends MetaBaseController
      *
      * @return list<array<string, mixed>>
      */
-    private function distribucionPorCanal(): array
+    private function distribucionPorCanal(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
     {
-        $porCanal = Contact::query()
+        $porCanal = $this->enRango(Contact::query(), $desde, $hasta, 'first_seen_at')
             ->selectRaw('channel, COUNT(*) as total')
             ->groupBy('channel')
             ->pluck('total', 'channel');
@@ -182,20 +268,101 @@ class ReportController extends MetaBaseController
     }
 
     /**
+     * Distribución por prioridad, de la más alta a la más baja.
+     *
+     * Se devuelven las cuatro aunque estén en cero, igual que las ciudades: la
+     * vista dibuja una barra por prioridad.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function distribucionPorPrioridad(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
+    {
+        $porPrioridad = $this->enRango(Ticket::query(), $desde, $hasta)
+            ->selectRaw('priority, COUNT(*) as total')
+            ->groupBy('priority')
+            ->pluck('total', 'priority');
+
+        $total = (int) $porPrioridad->sum();
+
+        return array_map(
+            fn (string $prioridad): array => [
+                'priority'   => $prioridad,
+                'label'      => self::PRIORIDADES[$prioridad],
+                'tickets'    => (int) ($porPrioridad[$prioridad] ?? 0),
+                'percentage' => $total > 0
+                    ? round((int) ($porPrioridad[$prioridad] ?? 0) / $total * 100, 1)
+                    : 0.0,
+            ],
+            array_keys(self::PRIORIDADES),
+        );
+    }
+
+    /**
+     * Cursos más solicitados.
+     *
+     * Es el corte de negocio de Reino Aromas: los cursos son el mayor ingreso,
+     * así que saber cuál se pide más es lo que justifica esta vista.
+     *
+     * A diferencia de ciudades y prioridades, aquí NO hay lista fija: el curso
+     * es texto libre que escribe el agente o rellena un Flow. Se normaliza a
+     * minúsculas para que "Velas" y "velas" no salgan como dos filas, y se
+     * devuelven los 10 primeros — la cola larga no aporta al reporte.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function distribucionPorCurso(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
+    {
+        $tickets = $this->enRango(Ticket::query(), $desde, $hasta)
+            ->whereNotNull('course_interest')
+            ->where('course_interest', '!=', '')
+            ->pluck('course_interest');
+
+        $total = $tickets->count();
+
+        if ($total === 0) {
+            return [];
+        }
+
+        // La agrupación se hace en PHP y no en SQL a propósito: MySQL agrupa sin
+        // distinguir mayúsculas por su collation, pero SQLite (donde corren los
+        // tests) sí distingue, y el reporte saldría distinto en cada motor.
+        return $tickets
+            ->groupBy(fn (string $curso): string => mb_strtolower(trim($curso)))
+            ->map(fn ($grupo, string $clave): array => [
+                'course'     => $clave,
+                // Se muestra la primera grafía que usó el agente, no la clave
+                // en minúsculas: "Sales Aromáticas" se lee mejor que "sales
+                // aromáticas".
+                'label'      => trim((string) $grupo->first()),
+                'tickets'    => $grupo->count(),
+                'percentage' => round($grupo->count() / $total * 100, 1),
+            ])
+            ->sortByDesc('tickets')
+            ->take(10)
+            ->values()
+            ->all();
+    }
+
+    /**
      * Totales de cabecera.
+     *
+     * Ojo con cuáles respetan el rango: los conteos de "cuántos entraron" sí,
+     * pero open_conversations y unassigned_tickets son fotos del AHORA — un
+     * chat abierto lo está hoy, no "en agosto". Filtrarlos daría un número que
+     * no significa nada.
      *
      * @return array<string, int>
      */
-    private function totales(): array
+    private function totales(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
     {
         return [
-            'contacts'            => Contact::query()->count(),
+            'contacts'            => $this->enRango(Contact::query(), $desde, $hasta, 'first_seen_at')->count(),
             'open_conversations'  => Conversation::query()
                 ->where('status', Conversation::STATUS_OPEN)
                 ->count(),
-            'tickets'             => Ticket::query()->count(),
+            'tickets'             => $this->enRango(Ticket::query(), $desde, $hasta)->count(),
             // Los que necesitan atención ya: alimenta el badge de "urgentes".
-            'urgent_tickets'      => Ticket::query()
+            'urgent_tickets'      => $this->enRango(Ticket::query(), $desde, $hasta)
                 ->where('status', Ticket::STATUS_ALTA_PRIORIDAD)
                 ->count(),
             // Sin asignar = nadie los está atendiendo todavía.
@@ -203,6 +370,15 @@ class ReportController extends MetaBaseController
                 ->whereNull('assigned_user_id')
                 ->whereNotIn('status', [Ticket::STATUS_CERRADO])
                 ->count(),
+            // Cerrados en el periodo: es el numerador de la tasa de cierre que
+            // pinta la vista. Va por closed_at, no por created_at — importa
+            // cuándo se cerró, no cuándo nació.
+            'closed_tickets'      => $this->enRango(
+                Ticket::query()->whereNotNull('closed_at'),
+                $desde,
+                $hasta,
+                'closed_at',
+            )->count(),
         ];
     }
 
@@ -276,5 +452,18 @@ class ReportController extends MetaBaseController
         'whatsapp'  => 'WhatsApp',
         'instagram' => 'Instagram',
         'facebook'  => 'Facebook',
+    ];
+
+    /**
+     * Las cuatro prioridades del enum de las migraciones, de mayor a menor.
+     * El orden importa: la vista las pinta en este orden.
+     *
+     * @var array<string, string>
+     */
+    private const PRIORIDADES = [
+        Ticket::PRIORITY_MUY_ALTA => 'Muy alta',
+        Ticket::PRIORITY_ALTA     => 'Alta',
+        Ticket::PRIORITY_MEDIA    => 'Media',
+        Ticket::PRIORITY_BAJA     => 'Baja',
     ];
 }

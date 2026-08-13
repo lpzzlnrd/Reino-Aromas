@@ -72,12 +72,7 @@
 
                 <button class="nav-item" @click="goTo('Clients')"><Users /><span>Clientes</span></button>
 
-                <!-- Reportes: pendiente de vista propia. Se deja deshabilitado
-                     en vez de apuntar al Dashboard, que hacía parecer que el
-                     botón estaba roto. -->
-                <button class="nav-item opacity-40 cursor-not-allowed" disabled title="Próximamente">
-                    <Chart /><span>Reportes</span>
-                </button>
+                <button class="nav-item" @click="goTo('Reports')"><Chart /><span>Reportes</span></button>
             </nav>
 
             <!-- Sistema -->
@@ -121,7 +116,7 @@
                         <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Home /><span>Dashboard</span></button>
                         <button @click="goTo('Messages Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Message /><span>Mensajería</span></button>
                         <button @click="goTo('Clients')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
-                        <button disabled title="Próximamente" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl opacity-40 cursor-not-allowed"><Chart /><span>Reportes</span></button>
+                        <button @click="goTo('Reports')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Chart /><span>Reportes</span></button>
                         <button @click="goTo('Templates')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Comments /><span>Plantillas</span></button>
                     </nav>
                     <footer v-if="user" class="mt-auto border-t border-primary/10 pt-4 flex items-center gap-2 p-2">
