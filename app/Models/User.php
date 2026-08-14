@@ -15,6 +15,9 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, SoftDeletes;
 
+    public const ROLE_SUPERADMIN    = 'superadmin';
+    public const ROLE_ADMINISTRADOR = 'administrador';
+
     protected $fillable = [
         'name',
         'email',
@@ -40,9 +43,22 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Los roles del enum de la migración, del más alto al más bajo.
+     *
+     * El orden importa: es el que usa el listado de administradores para
+     * ordenar, así que superadmin va primero.
+     *
+     * @return list<string>
+     */
+    public static function roles(): array
+    {
+        return [self::ROLE_SUPERADMIN, self::ROLE_ADMINISTRADOR];
+    }
+
     public function isSuperadmin(): bool
     {
-        return $this->role === 'superadmin';
+        return $this->role === self::ROLE_SUPERADMIN;
     }
 
     public function assignedTickets(): HasMany

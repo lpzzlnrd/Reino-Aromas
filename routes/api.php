@@ -12,6 +12,7 @@ use App\Http\Controllers\Facebook\FacebookAuthController;
 use App\Http\Controllers\Facebook\FacebookPostController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
@@ -163,6 +164,19 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('api.tickets.show');
     Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])->name('api.tickets.update');
     Route::put('/tickets/{ticket}/tags', [TicketController::class, 'syncTags'])->name('api.tickets.tags');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Etiquetas
+    |
+    | Catálogo para el selector del panel del chat. Es la contraparte de
+    | PUT /tickets/{id}/tags: ese endpoint recibe tag_ids, y sin este no había
+    | forma de saber qué ids existen.
+    |
+    | Solo lectura: las etiquetas las define el negocio y viven en TagsSeeder.
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/tags', [TagController::class, 'index'])->name('api.tags.index');
 
     /*
     |-------------------------------------------------------------------------
