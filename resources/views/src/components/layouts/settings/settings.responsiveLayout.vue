@@ -40,9 +40,9 @@
             <button :class="buttonClass('Accounts')" @click="goTo('Accounts')">
                 Cuentas
             </button>
-            <button :class="buttonClass('Users status')" @click="goTo('Users status')">
-                Estado de casos
-            </button>
+            <!-- "Estado de casos" salió de aquí en Semana 4: era el tablero
+                 Kanban y ahora vive en /app/tickets, con su botón en el menú
+                 principal. -->
             <button :class="buttonClass('Users')" @click="goTo('Users')">
                 Administradores
             </button>

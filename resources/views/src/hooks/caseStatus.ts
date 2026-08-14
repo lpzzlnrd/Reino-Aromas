@@ -9,6 +9,37 @@ export enum CaseStatus {
   Closed = 'Cerrado',
 }
 
+/** Status crudo del ticket, tal como lo guarda la columna `status`. */
+export type TicketStatus =
+  | 'nuevo'
+  | 'interesado'
+  | 'alta_prioridad'
+  | 'en_seguimiento'
+  | 'reservado'
+  | 'cerrado'
+
+/**
+ * El backend trabaja con el status crudo ('alta_prioridad') pero el enum del
+ * front usa etiquetas ('Urgente'), que es lo que ve el agente. Estos dos mapas
+ * traducen en ambas direcciones.
+ *
+ * Viven aquí y no en useInbox porque el Kanban necesita lo mismo: sin esto
+ * cada vista se inventaría su propia tabla y una de las dos se desincronizaría.
+ */
+export const STATUS_POR_ETIQUETA: Record<CaseStatus, TicketStatus> = {
+  [CaseStatus.New]: 'nuevo',
+  [CaseStatus.Interested]: 'interesado',
+  [CaseStatus.HighPriority]: 'alta_prioridad',
+  [CaseStatus.Following]: 'en_seguimiento',
+  [CaseStatus.Reserved]: 'reservado',
+  [CaseStatus.Closed]: 'cerrado',
+}
+
+/** Inverso de STATUS_POR_ETIQUETA: del status crudo a la columna del tablero. */
+export const ETIQUETA_POR_STATUS = Object.fromEntries(
+  Object.entries(STATUS_POR_ETIQUETA).map(([etiqueta, status]) => [status, etiqueta]),
+) as Record<TicketStatus, CaseStatus>
+
 const casesByStatus = ref<Record<CaseStatus, number>>({
   [CaseStatus.New]: 0,
   [CaseStatus.Interested]: 0,
