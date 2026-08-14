@@ -186,27 +186,6 @@ class TicketController extends MetaBaseController
     }
 
     /**
-     * Construye un ORDER BY que respeta el orden de $valores.
-     *
-     * Equivalente portable de FIELD(columna, ...) de MySQL. Los valores se
-     * escapan aunque hoy vengan solo de constantes del modelo: si algún día se
-     * alimenta desde el request, no debe convertirse en inyección SQL.
-     *
-     * @param list<string> $valores
-     */
-    private function ordenPor(string $columna, array $valores): string
-    {
-        $casos = '';
-        foreach (array_values($valores) as $i => $valor) {
-            $escapado = str_replace("'", "''", $valor);
-            $casos .= " WHEN '{$escapado}' THEN {$i}";
-        }
-
-        // El else deja al final cualquier valor inesperado de la columna.
-        return "CASE {$columna}{$casos} ELSE " . count($valores) . ' END';
-    }
-
-    /**
      * Asignación de agente. Vive aquí y no en TicketService porque el servicio
      * hoy no expone un método de asignación y el log debe quedar igual.
      */

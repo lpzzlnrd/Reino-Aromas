@@ -4,7 +4,6 @@
     import { useAuth } from '@/composables/useAuth'
 
     import Logo from '../../logo.vue'
-    import Plus from '../../icons/icon.plus.vue'
     import Home from '../../icons/icon.home.vue'
     import Message from '../../icons/icon.chat.vue'
     import Users from '../../icons/icon.users.vue'
@@ -38,9 +37,17 @@
                 <Bars />
             </button>
             <Logo class="h-8" />
-            <button class="btn-primary px-3 py-2 text-xs shadow-sm">
-                <Plus class="text-sm" />
-                <span>Venta</span>
+            <!-- Antes había un botón "Venta" acá. Ventas y pagos están fuera
+                 del alcance acordado, así que prometía una función que no
+                 existe y no llegaba a ninguna parte. Se reemplaza por el acceso
+                 a la bandeja, que es la acción diaria real del agente. -->
+            <button
+                @click="goTo('Messages Home')"
+                class="btn-primary px-3 py-2 text-xs shadow-sm"
+                aria-label="Ir a mensajes"
+            >
+                <Message class="text-sm" />
+                <span>Mensajes</span>
             </button>
         </header>
 
@@ -56,11 +63,17 @@
                 </div>
             </div>
 
-            <!-- Acción rápida -->
+            <!-- Acción rápida.
+                 Era "Nueva Venta", que no hacía nada: ventas y pagos quedaron
+                 fuera del alcance. Ahora lleva a la bandeja, que es donde
+                 empieza todo el trabajo del agente. -->
             <div class="px-2 mb-6">
-                <button class="btn-primary w-full shadow-md shadow-secondary/20 group text-sm py-2.5">
-                    <Plus class="group-hover:rotate-90 transition-transform duration-200" />
-                    <span>Nueva Venta</span>
+                <button
+                    @click="goTo('Messages Home')"
+                    class="btn-primary w-full shadow-md shadow-secondary/20 group text-sm py-2.5"
+                >
+                    <Message class="group-hover:scale-110 transition-transform duration-200" />
+                    <span>Ir a mensajes</span>
                 </button>
             </div>
 
