@@ -10,6 +10,7 @@ import UserStatus               from "./components/layouts/settings/settings.upd
 import UsersHome                from "./components/layouts/users/users.home.vue";
 import TemplatesHome            from "./components/layouts/templates/templates.home.vue";
 import ClientsHome              from "./components/layouts/clients/clients.home.vue";
+import ReportsHome              from "./components/layouts/reports/reports.home.vue";
 
 /**
  * Rutas de la SPA Vue.
@@ -56,6 +57,12 @@ const router = createRouter({
                     name: "Clients",
                     component: ClientsHome,
                     meta: { title: "Clientes" },
+                },
+                {
+                    path: "reports",
+                    name: "Reports",
+                    component: ReportsHome,
+                    meta: { title: "Reportes" },
                 },
                 {
                     path: "settings",

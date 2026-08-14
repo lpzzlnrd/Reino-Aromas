@@ -275,4 +275,260 @@ class DashboardReportsTest extends TestCase
         $this->getJson('/api/reports/by-city')->assertStatus(401);
         $this->getJson('/api/reports/activity')->assertStatus(401);
     }
+
+    /*
+    |-------------------------------------------------------------------------
+    | Bloques añadidos para la vista de Reportes: prioridad, curso y rango
+    |-------------------------------------------------------------------------
+    */
+
+    /** Las cuatro prioridades, aunque estén vacías, y de mayor a menor. */
+    public function test_la_distribucion_por_prioridad_trae_las_cuatro_en_orden(): void
+    {
+        $this->ticketCon(['priority' => Ticket::PRIORITY_MUY_ALTA]);
+        $this->ticketCon(['priority' => Ticket::PRIORITY_MEDIA]);
+        $this->ticketCon(['priority' => Ticket::PRIORITY_MEDIA]);
+
+        $porPrioridad = $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary')
+            ->assertOk()
+            ->json('by_priority');
+
+        $this->assertCount(4, $porPrioridad);
+        $this->assertSame(
+            ['muy_alta', 'alta', 'media', 'baja'],
+            array_column($porPrioridad, 'priority'),
+            'La vista las pinta en este orden.',
+        );
+
+        $porClave = collect($porPrioridad)->keyBy('priority');
+        $this->assertSame(2, $porClave['media']['tickets']);
+        $this->assertSame(1, $porClave['muy_alta']['tickets']);
+        $this->assertSame(0, $porClave['alta']['tickets'], 'Las vacías vienen en cero, no ausentes.');
+        $this->assertEqualsWithDelta(66.7, (float) $porClave['media']['percentage'], 0.05);
+    }
+
+    /**
+     * El curso es texto libre: "Velas" y "velas" son el mismo curso y deben
+     * contarse juntos. Se agrupa en PHP justamente porque SQLite distingue
+     * mayúsculas y MySQL no.
+     */
+    public function test_los_cursos_se_agrupan_sin_distinguir_mayusculas(): void
+    {
+        $this->ticketCon(['course_interest' => 'Velas']);
+        $this->ticketCon(['course_interest' => 'velas']);
+        $this->ticketCon(['course_interest' => '  VELAS  ']);
+        $this->ticketCon(['course_interest' => 'Jabones']);
+        // Sin curso: no debe aparecer como una fila vacía.
+        $this->ticketCon(['course_interest' => null]);
+
+        $porCurso = $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary')
+            ->assertOk()
+            ->json('by_course');
+
+        $this->assertCount(2, $porCurso, 'Velas (x3) y Jabones (x1).');
+
+        // El más pedido va primero: es la pregunta que responde el reporte.
+        $this->assertSame('velas', $porCurso[0]['course']);
+        $this->assertSame(3, $porCurso[0]['tickets']);
+        $this->assertEqualsWithDelta(75.0, (float) $porCurso[0]['percentage'], 0.05);
+
+        $this->assertSame(1, $porCurso[1]['tickets']);
+    }
+
+    public function test_sin_cursos_registrados_devuelve_lista_vacia(): void
+    {
+        $this->ticketCon(['course_interest' => null]);
+
+        $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary')
+            ->assertOk()
+            ->assertJsonCount(0, 'by_course');
+    }
+
+    /** El rango filtra los tickets por fecha de creación. */
+    public function test_el_rango_de_fechas_filtra_los_tickets(): void
+    {
+        $this->ticketCon(['status' => Ticket::STATUS_NUEVO], creadoEn: now()->subDays(40));
+        $this->ticketCon(['status' => Ticket::STATUS_NUEVO], creadoEn: now()->subDays(3));
+        $this->ticketCon(['status' => Ticket::STATUS_NUEVO], creadoEn: now()->subDay());
+
+        $agente = $this->agente();
+
+        $historico = $this->actingAs($agente)->getJson('/api/reports/summary')->json('totals.tickets');
+        $this->assertSame(3, $historico, 'Sin rango se cuenta todo, como antes.');
+
+        $ultimaSemana = $this->actingAs($agente)
+            ->getJson('/api/reports/summary?from=' . now()->subDays(7)->toDateString())
+            ->json('totals.tickets');
+
+        $this->assertSame(2, $ultimaSemana, 'El de hace 40 días queda fuera.');
+    }
+
+    /**
+     * `to` debe incluir el día completo. Con ?to=hoy, un ticket creado hoy a
+     * media tarde tiene que contar — cortar a medianoche lo dejaría fuera.
+     */
+    public function test_el_hasta_incluye_el_dia_completo(): void
+    {
+        $this->ticketCon([], creadoEn: now()->setTime(15, 30));
+
+        $total = $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary?to=' . now()->toDateString())
+            ->json('totals.tickets');
+
+        $this->assertSame(1, $total, 'Un ticket de esta tarde debe entrar con to=hoy.');
+    }
+
+    /** Un rango al revés se corrige en vez de devolver un reporte vacío. */
+    public function test_un_rango_invertido_se_corrige(): void
+    {
+        $this->ticketCon([], creadoEn: now()->subDays(3));
+
+        $total = $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary?from=' . now()->toDateString()
+                . '&to=' . now()->subDays(7)->toDateString())
+            ->json('totals.tickets');
+
+        $this->assertSame(1, $total, 'Invertido debe comportarse como el rango correcto.');
+    }
+
+    /** Una fecha basura se ignora: mejor el histórico que un 500. */
+    public function test_una_fecha_invalida_no_rompe_el_reporte(): void
+    {
+        $this->ticketCon([]);
+
+        $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary?from=no-es-una-fecha')
+            ->assertOk()
+            ->assertJsonPath('totals.tickets', 1);
+    }
+
+    /** El rango aplicado se devuelve para que la vista lo muestre al pie. */
+    public function test_el_resumen_devuelve_el_rango_aplicado(): void
+    {
+        $agente = $this->agente();
+
+        $this->actingAs($agente)
+            ->getJson('/api/reports/summary?from=2026-08-01&to=2026-08-31')
+            ->assertOk()
+            ->assertJsonPath('range.from', '2026-08-01')
+            ->assertJsonPath('range.to', '2026-08-31');
+
+        // Sin rango, ambos nulos: el front lo lee como "todo el histórico".
+        $this->actingAs($agente)
+            ->getJson('/api/reports/summary')
+            ->assertJsonPath('range.from', null)
+            ->assertJsonPath('range.to', null);
+    }
+
+    /**
+     * Los cerrados van por closed_at, no por created_at: importa cuándo se
+     * cerró el ticket, no cuándo nació.
+     */
+    public function test_los_cerrados_cuentan_por_fecha_de_cierre(): void
+    {
+        // Nació hace 40 días pero se cerró ayer: cuenta en la última semana.
+        $ticket = $this->ticketCon(
+            ['status' => Ticket::STATUS_CERRADO],
+            creadoEn: now()->subDays(40),
+        );
+        $ticket->forceFill(['closed_at' => now()->subDay()])->save();
+
+        $cerrados = $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary?from=' . now()->subDays(7)->toDateString())
+            ->json('totals.closed_tickets');
+
+        $this->assertSame(1, $cerrados);
+    }
+
+    /**
+     * open_conversations y unassigned_tickets son fotos del AHORA: filtrarlas
+     * por rango daría un número sin significado.
+     */
+    public function test_los_totales_de_estado_actual_ignoran_el_rango(): void
+    {
+        $this->ticketCon(['status' => Ticket::STATUS_NUEVO], creadoEn: now()->subDays(40));
+
+        $totals = $this->actingAs($this->agente())
+            ->getJson('/api/reports/summary?from=' . now()->subDay()->toDateString())
+            ->json('totals');
+
+        $this->assertSame(0, $totals['tickets'], 'El ticket viejo queda fuera del rango.');
+        $this->assertSame(1, $totals['open_conversations'], 'Pero el chat sigue abierto hoy.');
+        $this->assertSame(1, $totals['unassigned_tickets'], 'Y sigue sin asignar hoy.');
+    }
+
+    public function test_la_actividad_respeta_el_limite(): void
+    {
+        foreach (range(1, 20) as $i) {
+            app(\App\Services\ActivityLogService::class)->log(
+                causerType: null,
+                causerId: null,
+                targetType: Ticket::class,
+                targetId: $i,
+                action: 'ticket.created',
+                metadata: [],
+            );
+        }
+
+        $agente = $this->agente();
+
+        $this->assertCount(
+            15,
+            $this->actingAs($agente)->getJson('/api/reports/activity')->assertOk()->json(),
+            'El default sigue siendo 15, como lo espera el dashboard.',
+        );
+
+        $this->assertCount(
+            5,
+            $this->actingAs($agente)->getJson('/api/reports/activity?limit=5')->assertOk()->json(),
+        );
+
+        // Un límite absurdo se topa en 100, no trae la tabla entera.
+        $this->assertCount(
+            20,
+            $this->actingAs($agente)->getJson('/api/reports/activity?limit=99999')->assertOk()->json(),
+        );
+    }
+
+    /**
+     * Crea un ticket con su contacto y conversación, para los casos donde solo
+     * importan los campos del ticket.
+     *
+     * @param array<string, mixed> $atributos
+     */
+    private function ticketCon(array $atributos, ?\DateTimeInterface $creadoEn = null): Ticket
+    {
+        $contact = Contact::create([
+            'channel'       => Contact::CHANNEL_WHATSAPP,
+            'channel_id'    => 'ext-' . uniqid(),
+            'display_name'  => 'Cliente ' . uniqid(),
+            'city'          => 'caracas',
+            'first_seen_at' => $creadoEn ?? now(),
+            'last_seen_at'  => now(),
+        ]);
+
+        $conversation = $contact->conversations()->create([
+            'status'            => Conversation::STATUS_OPEN,
+            'within_24h_window' => true,
+            'last_message_at'   => now(),
+        ]);
+
+        $ticket = Ticket::create(array_merge([
+            'conversation_id' => $conversation->id,
+            'status'          => Ticket::STATUS_NUEVO,
+            'priority'        => Ticket::PRIORITY_MEDIA,
+            'city'            => 'caracas',
+        ], $atributos));
+
+        // created_at se fuerza aparte: Eloquent lo pisa con la hora actual al
+        // insertar, así que pasarlo en el create() no serviría.
+        if ($creadoEn !== null) {
+            $ticket->forceFill(['created_at' => $creadoEn])->save();
+        }
+
+        return $ticket->refresh();
+    }
 }
