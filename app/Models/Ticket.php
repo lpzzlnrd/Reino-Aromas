@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\TicketUpdated;
 use App\Models\Concerns\HasActivityLogs;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -98,6 +99,37 @@ class Ticket extends Model
         'reserved_at' => 'datetime',
         'closed_at'   => 'datetime',
     ];
+
+    /**
+     * Difusión por WebSocket de los cambios que mueven el tablero.
+     *
+     * Solo status, priority y assigned_user_id: guardar una nota o corregir la
+     * ciudad no debe hacer saltar ninguna tarjeta del Kanban.
+     *
+     * Se difunden los valores ANTERIORES junto al ticket para que el front sepa
+     * de qué columna sacarlo — con solo el estado nuevo tendría que buscar la
+     * tarjeta por todo el tablero.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (Ticket $ticket): void {
+            $relevantes = ['status', 'priority', 'assigned_user_id'];
+
+            if (! $ticket->wasChanged($relevantes)) {
+                return;
+            }
+
+            // getOriginal() devuelve el valor de antes del save().
+            $previos = [];
+            foreach ($relevantes as $campo) {
+                if ($ticket->wasChanged($campo)) {
+                    $previos[$campo] = $ticket->getOriginal($campo);
+                }
+            }
+
+            TicketUpdated::dispatch($ticket, $previos);
+        });
+    }
 
     public function conversation(): BelongsTo
     {

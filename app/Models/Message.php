@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Events\MessageCreated;
+use App\Events\MessageStatusChanged;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -57,6 +59,34 @@ class Message extends Model
         'read_at'      => 'datetime',
         'created_at'   => 'datetime',
     ];
+
+    /**
+     * Difusión por WebSocket de lo que le pasa a un mensaje.
+     *
+     * Va en el modelo y no en los servicios porque los mensajes nacen en tres
+     * sitios distintos (OutboundMessageService, WhatsAppService,
+     * InstagramService) y el estado lo mueven tres Jobs más. Engancharlo acá
+     * cubre todos los caminos, incluidos los que se añadan después.
+     *
+     * `$dispatchesEvents` no sirve para este caso: dispara en `created` y
+     * `updated` sin condiciones, y el cambio de estado necesita comprobar QUÉ
+     * cambió antes de difundir.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Message $message): void {
+            MessageCreated::dispatch($message);
+        });
+
+        static::updated(function (Message $message): void {
+            // Solo si cambió el estado o su motivo de fallo. Los Jobs también
+            // escriben external_id y meta_payload en el mismo save(), y eso al
+            // front no le dice nada.
+            if ($message->wasChanged(['status', 'failed_reason'])) {
+                MessageStatusChanged::dispatch($message);
+            }
+        });
+    }
 
     public function conversation(): BelongsTo
     {
