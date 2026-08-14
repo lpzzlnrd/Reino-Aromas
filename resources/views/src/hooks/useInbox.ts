@@ -1,6 +1,11 @@
 import { computed, ref } from 'vue'
 import api from '@/lib/axios'
-import { CaseStatus, useCaseStatus } from './caseStatus'
+import {
+    CaseStatus,
+    STATUS_POR_ETIQUETA,
+    useCaseStatus,
+    type TicketStatus,
+} from './caseStatus'
 
 /**
  * Bandeja de mensajes: lista de chats, conversación abierta y envío.
@@ -21,31 +26,14 @@ export type Channel = 'whatsapp' | 'instagram' | 'facebook'
 /** Estados que puede tener un mensaje saliente. Ver App\Models\Message. */
 export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
 
-/** Status crudo del ticket, tal como lo guarda la columna. */
-export type TicketStatus =
-    | 'nuevo'
-    | 'interesado'
-    | 'alta_prioridad'
-    | 'en_seguimiento'
-    | 'reservado'
-    | 'cerrado'
+/**
+ * El status crudo y el mapa de traducción viven en caseStatus.ts: el Kanban
+ * necesita lo mismo. Se re-exporta el tipo porque varios componentes de la
+ * bandeja lo importan desde aquí.
+ */
+export type { TicketStatus }
 
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'muy_alta'
-
-/**
- * El backend filtra por el status crudo (?case=alta_prioridad) pero el enum
- * del front trabaja con etiquetas ('Urgente'), que es lo que ve el agente.
- * Este mapa traduce del botón al query string; sin él, filtrar por cualquier
- * estado de dos palabras devolvía cero resultados en silencio.
- */
-const STATUS_POR_ETIQUETA: Record<CaseStatus, TicketStatus> = {
-    [CaseStatus.New]: 'nuevo',
-    [CaseStatus.Interested]: 'interesado',
-    [CaseStatus.HighPriority]: 'alta_prioridad',
-    [CaseStatus.Following]: 'en_seguimiento',
-    [CaseStatus.Reserved]: 'reservado',
-    [CaseStatus.Closed]: 'cerrado',
-}
 
 /** Una fila de la lista. Forma de ConversationController::serializarResumen. */
 export type ChatSummary = {

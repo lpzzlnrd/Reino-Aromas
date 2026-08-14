@@ -9,6 +9,7 @@
     import Users from '../../icons/icon.users.vue'
     import Comments from '../../icons/icon.comments.vue'
     import Chart from '../../icons/icon.chart.vue'
+    import Check from '../../icons/icon.check.vue'
     import User from '../../icons/icon.user.vue'
     import Gear from '../../icons/icon.setting.vue'
     import Close from '../../icons/icon.close.vue'
@@ -83,6 +84,8 @@
                 <button class="nav-item" @click="goTo('Dashboard Home')"><Home /><span>Dashboard</span></button>
                 <button class="nav-item" @click="goTo('Messages Home')"><Message /><span>Mensajería</span></button>
 
+                <button class="nav-item" @click="goTo('Tickets Board')"><Check /><span>Tablero</span></button>
+
                 <button class="nav-item" @click="goTo('Clients')"><Users /><span>Clientes</span></button>
 
                 <button class="nav-item" @click="goTo('Reports')"><Chart /><span>Reportes</span></button>
@@ -128,6 +131,7 @@
                     <nav class="flex flex-col gap-1 flex-1">
                         <button @click="goTo('Dashboard Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Home /><span>Dashboard</span></button>
                         <button @click="goTo('Messages Home')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Message /><span>Mensajería</span></button>
+                        <button @click="goTo('Tickets Board')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Check /><span>Tablero</span></button>
                         <button @click="goTo('Clients')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
                         <button @click="goTo('Reports')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Chart /><span>Reportes</span></button>
                         <button @click="goTo('Templates')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Comments /><span>Plantillas</span></button>

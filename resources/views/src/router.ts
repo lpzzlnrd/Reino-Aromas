@@ -6,7 +6,7 @@ import MessagesLayout           from "./components/layouts/messages/messages.res
 import MessagesHome             from "./components/layouts/messages/messages.home.vue";
 import SettingsResponsiveLayout from "./components/layouts/settings/settings.responsiveLayout.vue";
 import SettingsAccounts         from "./components/layouts/settings/settings.accounts.vue";
-import UserStatus               from "./components/layouts/settings/settings.updateStatus.vue";
+import TicketsBoard             from "./components/layouts/tickets/tickets.board.vue";
 import UsersHome                from "./components/layouts/users/users.home.vue";
 import TemplatesHome            from "./components/layouts/templates/templates.home.vue";
 import ClientsHome              from "./components/layouts/clients/clients.home.vue";
@@ -59,6 +59,15 @@ const router = createRouter({
                     meta: { title: "Clientes" },
                 },
                 {
+                    // El tablero del embudo. Estuvo bajo settings/status hasta
+                    // Semana 4: es operación diaria, no configuración, y va al
+                    // lado de messages y clients.
+                    path: "tickets",
+                    name: "Tickets Board",
+                    component: TicketsBoard,
+                    meta: { title: "Tablero" },
+                },
+                {
                     path: "reports",
                     name: "Reports",
                     component: ReportsHome,
@@ -76,10 +85,11 @@ const router = createRouter({
                             meta: { title: "Cuentas" },
                         },
                         {
+                            // El tablero se mudó a /app/tickets. Se deja el
+                            // redirect porque esta URL puede estar guardada en
+                            // el navegador de alguien.
                             path: "status",
-                            name: "Users status",
-                            component: UserStatus,
-                            meta: { title: "Estado de usuarios" },
+                            redirect: { name: "Tickets Board" },
                         },
                         {
                             path: "users",
