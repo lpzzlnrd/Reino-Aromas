@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/lib/axios'
+import { disconnectEcho } from '@/lib/echo'
 
 // Tipo del usuario autenticado — espeja los campos seguros del modelo User de Laravel
 export type AuthUser = {
@@ -48,6 +49,11 @@ export function useAuth() {
             })
         } finally {
             user.value = null
+            // El WebSocket quedaría abierto y autenticado como el usuario que
+            // acaba de salir. La recarga de abajo también lo cerraría, pero
+            // hacerlo explícito evita que quede vivo si algún día el logout
+            // deja de recargar la página.
+            disconnectEcho()
             // Laravel ya redirige al login via RedirectResponse — recargamos para
             // que el browser siga esa redirección.
             window.location.href = '/login'
