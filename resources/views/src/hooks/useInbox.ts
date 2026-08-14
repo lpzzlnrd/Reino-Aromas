@@ -426,6 +426,119 @@ export function useInbox() {
         filters.value = { search: '', channel: '', case: null, mine: false }
     }
 
+    /*
+    |-------------------------------------------------------------------------
+    | Entrada de eventos en tiempo real
+    |
+    | Los llaman los componentes desde useRealtime(). El hook no se suscribe
+    | por su cuenta: la suscripción tiene que morir con el componente que la
+    | abrió, y este hook es un singleton que nunca se desmonta.
+    |-------------------------------------------------------------------------
+    */
+
+    /**
+     * Llegó un mensaje (evento 'message.created').
+     *
+     * Cubre los dos casos: uno entrante del cliente y uno saliente enviado por
+     * OTRO agente desde otra pestaña.
+     */
+    const onMessageCreated = (payload: {
+        conversation_id: number
+        message: ChatMessage
+    }): void => {
+        const { conversation_id: conversationId, message } = payload
+
+        // Al chat abierto, si es el suyo.
+        if (detail.value?.id === conversationId) {
+            // El que envía ya insertó su mensaje al recibir el 202, así que
+            // cuando el socket lo devuelve ya está en la lista. Sin esta
+            // comprobación la burbuja saldría dos veces.
+            const yaEsta = detail.value.messages.some((m) => m.id === message.id)
+
+            if (!yaEsta) {
+                detail.value.messages.push(message)
+            } else {
+                // Puede traer datos que el 202 no tenía (sender resuelto,
+                // sent_at), así que se completa en vez de ignorarlo.
+                const i = detail.value.messages.findIndex((m) => m.id === message.id)
+                if (i !== -1) detail.value.messages[i] = message
+            }
+        }
+
+        // A la fila de la bandeja, que muestra el último mensaje.
+        const fila = chats.value.find((c) => c.id === conversationId)
+
+        if (fila) {
+            fila.last_message = message.body ?? ''
+            fila.message_time = message.created_at
+
+            // La lista va ordenada por actividad: el chat que acaba de recibir
+            // sube al principio, como en cualquier bandeja.
+            const i = chats.value.indexOf(fila)
+            if (i > 0) {
+                chats.value.splice(i, 1)
+                chats.value.unshift(fila)
+            }
+        } else {
+            // Conversación que no estaba en la lista: un contacto nuevo escribió
+            // por primera vez. No se puede construir la fila desde el payload
+            // del mensaje (falta el nombre, el canal, la ciudad), así que se
+            // recarga. Es el único caso que necesita ir al servidor.
+            void loadChats()
+        }
+    }
+
+    /**
+     * Cambió el estado de entrega de un mensaje (evento 'message.status').
+     *
+     * Es lo que cierra el círculo del envío: el mensaje nace 'pending' y esto
+     * lo pasa a 'sent' o 'failed' sin que el agente recargue.
+     */
+    const onMessageStatus = (payload: {
+        conversation_id: number
+        id: number
+        status: MessageStatus
+        failed_reason: string | null
+        sent_at: string | null
+        delivered_at: string | null
+        read_at: string | null
+    }): void => {
+        if (detail.value?.id !== payload.conversation_id) return
+
+        const mensaje = detail.value.messages.find((m) => m.id === payload.id)
+        if (!mensaje) return
+
+        mensaje.status = payload.status
+        mensaje.failed_reason = payload.failed_reason
+        mensaje.sent_at = payload.sent_at
+        mensaje.delivered_at = payload.delivered_at
+        mensaje.read_at = payload.read_at
+    }
+
+    /**
+     * Un ticket cambió (evento 'ticket.updated').
+     *
+     * Puede venir de otro agente moviendo la tarjeta en el Kanban o editando el
+     * panel del chat.
+     */
+    const onTicketUpdated = (payload: {
+        conversation_id: number
+        ticket: ChatTicket
+    }): void => {
+        const { conversation_id: conversationId, ticket } = payload
+
+        if (detail.value?.id === conversationId) {
+            detail.value.ticket = ticket
+        }
+
+        // El badge de la fila lee case_status, que es la etiqueta.
+        const fila = chats.value.find((c) => c.id === conversationId)
+        if (fila) fila.case_status = ticket.status_label
+
+        // Los contadores de los filtros quedaron viejos.
+        void loadCounts()
+    }
+
     return {
         chats,
         detail,
@@ -449,5 +562,8 @@ export function useInbox() {
         setConversationStatus,
         updateTicket,
         clearFilters,
+        onMessageCreated,
+        onMessageStatus,
+        onTicketUpdated,
     }
 }

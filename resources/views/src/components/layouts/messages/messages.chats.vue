@@ -1,6 +1,7 @@
 <script setup lang="ts">
     import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
     import { useInbox, type ChatMessage } from '@/hooks/useInbox'
+    import { useRealtime } from '@/hooks/useRealtime'
     import { useDashboard } from '@/hooks/useDashboard'
     import { CaseStatus } from '@/hooks/caseStatus'
 
@@ -32,7 +33,15 @@
         sendMessage,
         sendTemplate,
         setConversationStatus,
+        onMessageCreated,
+        onMessageStatus,
+        onTicketUpdated,
     } = useInbox()
+
+    const { escuchar, dejar } = useRealtime()
+
+    /** Canal al que este chat está suscrito, para poder dejarlo al cambiar. */
+    let canalActual: string | null = null
 
     // Los tickets resueltos del estado vacío salen del mismo /reports/summary
     // que alimenta el dashboard; antes era un ref(0) que nadie actualizaba.
@@ -138,8 +147,46 @@
         return new Date(actual.created_at).toDateString() !== new Date(previo.created_at).toDateString()
     }
 
-    // Al abrir un chat el hilo tiene que quedar abajo, en lo último que se dijo.
-    watch(() => detail.value?.id, () => scrollToBottom())
+    /**
+     * Al cambiar de chat: bajar el hilo y mover la suscripción.
+     *
+     * Se deja el canal anterior antes de entrar al nuevo. Sin eso, navegar entre
+     * chats acumularía suscripciones y los mensajes de una conversación cerrada
+     * seguirían llegando.
+     */
+    watch(() => detail.value?.id, (id) => {
+        scrollToBottom()
+
+        if (canalActual !== null) {
+            dejar(canalActual)
+            canalActual = null
+        }
+
+        if (id === undefined) return
+
+        canalActual = `conversations.${id}`
+
+        escuchar(canalActual, {
+            'message.created': onMessageCreated,
+            // El que cierra el círculo del envío: pending → sent/failed sin
+            // recargar.
+            'message.status': onMessageStatus,
+            // El panel lateral muestra el ticket: si otro agente lo mueve, se
+            // actualiza acá también.
+            'ticket.updated': onTicketUpdated,
+        })
+    })
+
+    // Cuando llega un mensaje al chat abierto hay que bajar el hilo, o el
+    // agente no ve lo que acaba de entrar.
+    watch(
+        () => detail.value?.messages.length,
+        (nuevo, previo) => {
+            if (nuevo !== undefined && previo !== undefined && nuevo > previo) {
+                void scrollToBottom()
+            }
+        },
+    )
 
     onMounted(() => {
         checkScreen()

@@ -2,6 +2,7 @@
     import { onMounted, watch } from 'vue'
     import { useCaseStatus } from '@/hooks/caseStatus.ts'
     import { useInbox, type ChatSummary } from '@/hooks/useInbox'
+    import { useRealtime } from '@/hooks/useRealtime'
 
     import Search from '../../icons/icon.search.vue'
     import User from '../../icons/icon.user.vue'
@@ -29,7 +30,14 @@
         loadCounts,
         openChat,
         clearFilters,
+        onMessageCreated,
+        onTicketUpdated,
     } = useInbox()
+
+    // La suscripción vive en el componente y no en el hook: useInbox es un
+    // singleton que nunca se desmonta, así que dejarla ahí mantendría el canal
+    // abierto al salir de la bandeja.
+    const { disponible: enVivo, escuchar } = useRealtime()
 
     let searchTimer: number | undefined
 
@@ -86,6 +94,18 @@
     onMounted(() => {
         loadChats()
         loadCounts()
+
+        // Canal compartido: los agentes ven la misma bandeja, así que un chat
+        // nuevo tiene que aparecerles a todos.
+        escuchar('inbox', {
+            'message.created': onMessageCreated,
+        })
+
+        // Los tickets llegan por su propio canal: mover una tarjeta en el
+        // Kanban debe refrescar el badge de la lista.
+        escuchar('tickets', {
+            'ticket.updated': onTicketUpdated,
+        })
     })
 </script>
 
@@ -135,13 +155,34 @@
                     <span class="text-[10px] font-bold uppercase tracking-widest text-primary/50">Asignados a mí</span>
                 </label>
 
-                <button
-                    v-if="hasFilters"
-                    @click="clearFilters(); loadChats()"
-                    class="text-[10px] font-bold uppercase tracking-widest text-primary/40 hover:text-primary transition-colors cursor-pointer"
-                >
-                    Limpiar
-                </button>
+                <div class="flex items-center gap-2">
+                    <!-- Sin esto el agente no sabe si la lista está al día o si
+                         tiene que recargar a mano. -->
+                    <span
+                        v-if="enVivo"
+                        class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-600"
+                        title="Las conversaciones se actualizan solas"
+                    >
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                        En vivo
+                    </span>
+                    <button
+                        v-else
+                        @click="loadChats(); loadCounts()"
+                        class="text-[10px] font-bold uppercase tracking-widest text-primary/40 hover:text-primary transition-colors cursor-pointer"
+                        title="El tiempo real no está disponible: actualiza a mano"
+                    >
+                        Actualizar
+                    </button>
+
+                    <button
+                        v-if="hasFilters"
+                        @click="clearFilters(); loadChats()"
+                        class="text-[10px] font-bold uppercase tracking-widest text-primary/40 hover:text-primary transition-colors cursor-pointer"
+                    >
+                        Limpiar
+                    </button>
+                </div>
             </div>
         </div>
 
