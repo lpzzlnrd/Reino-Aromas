@@ -20,6 +20,7 @@ class InstagramService
         private ConversationService $conversationService,
         private TicketService $ticketService,
         private ActivityLogService $activityLogService,
+        private MetaCredentials $credentials = new MetaCredentials(),
     ) {}
 
     /**
@@ -104,12 +105,13 @@ class InstagramService
      */
     public function sendMessage(string $recipientIgsid, string $text): array
     {
-        $igAccountId = config('services.meta.instagram_account_id');
-        $accessToken = config('services.meta.access_token');
-        $apiVersion  = config('services.meta.graph_api_version', 'v21.0');
+        // Falla con el nombre de la variable ausente en vez de pedirle a Meta
+        // una URL con el id vacío.
+        $igAccountId = $this->credentials->obtener('instagram_account_id');
+        $accessToken = $this->credentials->obtener('access_token');
 
         $response = Http::withToken($accessToken)
-            ->post("https://graph.facebook.com/{$apiVersion}/{$igAccountId}/messages", [
+            ->post($this->credentials->urlGraph("{$igAccountId}/messages"), [
                 'recipient'      => ['id' => $recipientIgsid],
                 'message'        => ['text' => $text],
                 'messaging_type' => 'RESPONSE',
@@ -133,11 +135,19 @@ class InstagramService
 
     /**
      * Verifica la firma HMAC del webhook entrante.
+     *
+     * Sin app_secret devuelve false sin calcular nada: un HMAC con clave vacía
+     * lo puede reproducir cualquiera. Ver la nota en WhatsAppService.
      */
     public function verifySignature(string $rawBody, string $signature): bool
     {
-        $appSecret = config('services.meta.app_secret');
-        $expected  = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
+        if (! $this->credentials->tiene('app_secret')) {
+            Log::error('[Instagram] META_APP_SECRET no está configurado: se rechaza el webhook por no poder verificar su firma.');
+
+            return false;
+        }
+
+        $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $this->credentials->obtener('app_secret'));
 
         return hash_equals($expected, $signature);
     }

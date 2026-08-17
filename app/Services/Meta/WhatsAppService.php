@@ -19,6 +19,7 @@ class WhatsAppService
         private ConversationService $conversationService,
         private TicketService $ticketService,
         private ActivityLogService $activityLogService,
+        private MetaCredentials $credentials = new MetaCredentials(),
     ) {}
 
     /**
@@ -160,12 +161,13 @@ class WhatsAppService
      */
     public function sendMessage(string $recipientPhone, string $text): array
     {
-        $phoneNumberId = config('services.meta.whatsapp_phone_number_id');
-        $accessToken   = config('services.meta.access_token');
-        $apiVersion    = config('services.meta.graph_api_version', 'v21.0');
+        // Revienta con el nombre de la variable que falta en vez de armar la URL
+        // con un id vacío y recibir un 404 indescifrable de Meta.
+        $phoneNumberId = $this->credentials->obtener('whatsapp_phone_number_id');
+        $accessToken   = $this->credentials->obtener('access_token');
 
         $response = Http::withToken($accessToken)
-            ->post("https://graph.facebook.com/{$apiVersion}/{$phoneNumberId}/messages", [
+            ->post($this->credentials->urlGraph("{$phoneNumberId}/messages"), [
                 'messaging_product' => 'whatsapp',
                 'recipient_type'    => 'individual',
                 'to'                => $recipientPhone,
@@ -218,9 +220,8 @@ class WhatsAppService
         ?string $headerText = null,
         ?string $footerText = null,
     ): array {
-        $phoneNumberId = config('services.meta.whatsapp_phone_number_id');
-        $accessToken   = config('services.meta.access_token');
-        $apiVersion    = config('services.meta.graph_api_version', 'v21.0');
+        $phoneNumberId = $this->credentials->obtener('whatsapp_phone_number_id');
+        $accessToken   = $this->credentials->obtener('access_token');
 
         $interactive = [
             'type' => 'flow',
@@ -249,7 +250,7 @@ class WhatsAppService
         }
 
         $response = Http::withToken($accessToken)
-            ->post("https://graph.facebook.com/{$apiVersion}/{$phoneNumberId}/messages", [
+            ->post($this->credentials->urlGraph("{$phoneNumberId}/messages"), [
                 'messaging_product' => 'whatsapp',
                 'recipient_type'    => 'individual',
                 'to'                => $recipientPhone,
@@ -276,11 +277,21 @@ class WhatsAppService
 
     /**
      * Verifica la firma HMAC del webhook entrante.
+     *
+     * Sin app_secret devuelve false y NO calcula nada: un HMAC con clave vacía
+     * es predecible, así que cualquiera que supiera que el secreto falta podría
+     * firmar un payload falso y hacerse pasar por Meta. Rechazar es lo correcto
+     * — mejor un webhook que no entra que uno que entra sin autenticar.
      */
     public function verifySignature(string $rawBody, string $signature): bool
     {
-        $appSecret = config('services.meta.app_secret');
-        $expected  = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
+        if (! $this->credentials->tiene('app_secret')) {
+            Log::error('[WhatsApp] META_APP_SECRET no está configurado: se rechaza el webhook por no poder verificar su firma.');
+
+            return false;
+        }
+
+        $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $this->credentials->obtener('app_secret'));
 
         return hash_equals($expected, $signature);
     }
