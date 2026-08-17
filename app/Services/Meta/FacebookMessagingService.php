@@ -28,8 +28,19 @@ class FacebookMessagingService
      */
     public function sendTextMessage(string $recipientPsid, string $message): array
     {
-        if ($this->pageId === null || $this->pageId === '' || $this->pageAccessToken === null || $this->pageAccessToken === '') {
-            return ['success' => false, 'error' => 'Facebook page is not configured.'];
+        // Este servicio degrada en vez de lanzar (a diferencia de WhatsApp e
+        // Instagram) porque su contrato es devolver el array de resultado. Se
+        // nombra la variable que falta para no dejar al dev adivinando.
+        $faltantes = (new MetaCredentials())->faltantes([
+            'facebook.page_id',
+            'facebook.page_access_token',
+        ]);
+
+        if ($faltantes !== []) {
+            $error = 'Facebook no está configurado: falta ' . implode(', ', $faltantes) . '.';
+            Log::warning('[Facebook] Envío omitido por credenciales ausentes', ['faltantes' => $faltantes]);
+
+            return ['success' => false, 'error' => $error];
         }
 
         try {

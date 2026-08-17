@@ -28,3 +28,8 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Runbook de operación del VPS. Fuera del repo a propósito: mezcla comandos con
+# IPs, puertos internos y rutas de llaves. Nada de eso debe quedar en el
+# historial de git, que es público y no se puede reescribir sin dolor.
+/VPS.md
