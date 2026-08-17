@@ -11,6 +11,7 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
 use App\Http\Controllers\Facebook\FacebookPostController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MetaAccountController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TemplateController;
@@ -277,6 +278,38 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         // consume el selector de plantillas del chat.
         Route::post("/conversations/{conversation}/messages/template/{template}", [MessageController::class, "storeFromTemplate"])
             ->name("conversations.messages.template");
+
+        /*
+        |=====================================================================
+        | Cuentas vinculadas — lo que consume /app/settings/accounts
+        |
+        | El flujo de vinculación es el Embedded Signup de Meta: el JS SDK abre
+        | un popup en el navegador y devuelve un `code` de 30 segundos, que se
+        | cambia aquí por un token de larga duración. El intercambio va en el
+        | backend porque necesita el app_secret, que no puede salir al cliente.
+        |=====================================================================
+        */
+        Route::prefix('accounts')->name('accounts.')->group(function (): void {
+
+            // Estado de los tres canales + la config que el SDK necesita para
+            // arrancar (app_id, versión, config_id por canal).
+            Route::get('/', [MetaAccountController::class, 'index'])->name('index');
+
+            // Recibe el code del popup y guarda la cuenta.
+            Route::post('/{channel}/exchange', [MetaAccountController::class, 'exchange'])
+                ->name('exchange');
+
+            // Comprueba contra la Graph API que el token sirve. "Configurado"
+            // no es "funciona": un token revocado pasa el chequeo estático.
+            Route::post('/{channel}/verify', [MetaAccountController::class, 'verify'])
+                ->name('verify');
+
+            // Desvincula. No borra la fila: marca 'disconnected' y limpia el
+            // token, para conservar el rastro de quién la conectó.
+            Route::delete('/{channel}', [MetaAccountController::class, 'destroy'])
+                ->name('destroy');
+
+        });
 
         /*
         |=====================================================================
