@@ -31,6 +31,8 @@
         detailError,
         sendError,
         sendMessage,
+        retrying,
+        retryMessage,
         sendTemplate,
         setConversationStatus,
         onMessageCreated,
@@ -298,9 +300,22 @@
                                 </template>
                             </span>
 
-                            <p v-if="msg.status === 'failed' && msg.failed_reason" class="text-[10px] text-red-600/80 px-1 max-w-sm text-right">
-                                {{ msg.failed_reason }}
-                            </p>
+                            <!-- Fallo: el motivo y la salida.
+                                 Antes solo se pintaba el texto rojo y el agente
+                                 no tenia mas opcion que reescribir el mensaje. -->
+                            <div v-if="msg.status === 'failed'" class="flex flex-col items-end gap-1 px-1 max-w-sm">
+                                <p v-if="msg.failed_reason" class="text-[10px] text-red-600/80 text-right">
+                                    {{ msg.failed_reason }}
+                                </p>
+
+                                <button
+                                    :disabled="retrying === msg.id"
+                                    @click="retryMessage(msg.id)"
+                                    class="text-[10px] font-bold uppercase tracking-widest text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    {{ retrying === msg.id ? 'Reintentando...' : 'Reintentar' }}
+                                </button>
+                            </div>
                         </div>
                     </template>
                 </div>

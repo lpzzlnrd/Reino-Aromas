@@ -274,6 +274,24 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::post("/conversations/{conversation}/messages", [MessageController::class, "store"])
             ->name("conversations.messages.store");
 
+        /*
+        |---------------------------------------------------------------------
+        | Mensajes fallidos
+        |
+        | Hasta ahora un envio fallido solo existia como una fila con status
+        | 'failed' y una linea en el log: nadie se enteraba salvo que abriera
+        | ese chat. Estas dos rutas lo hacen visible y recuperable.
+        |
+        | /messages/failed va ANTES de /messages/{message} o Laravel intentaria
+        | resolver "failed" como un id.
+        |---------------------------------------------------------------------
+        */
+        Route::get("/messages/failed", [MessageController::class, "failed"])
+            ->name("messages.failed");
+
+        Route::post("/messages/{message}/retry", [MessageController::class, "retry"])
+            ->name("messages.retry");
+
         // Envio de una plantilla ya renderizada en el servidor. Es lo que
         // consume el selector de plantillas del chat.
         Route::post("/conversations/{conversation}/messages/template/{template}", [MessageController::class, "storeFromTemplate"])
