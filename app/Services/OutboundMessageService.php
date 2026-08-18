@@ -81,6 +81,56 @@ class OutboundMessageService
     }
 
     /**
+     * Vuelve a encolar un mensaje que falló.
+     *
+     * Lo hace el agente desde el chat, o el comando messages:retry-failed para
+     * los que fallaron por una caída temporal de Meta.
+     *
+     * Se reutiliza el registro existente en vez de crear uno nuevo: duplicar el
+     * mensaje dejaría dos burbujas en el chat para algo que el cliente vio una
+     * sola vez (o ninguna), y rompería la correlación con el external_id que
+     * Meta devuelva.
+     *
+     * @throws \RuntimeException si el mensaje no se puede reintentar.
+     */
+    public function retryFailedMessage(Message $message): Message
+    {
+        if ($message->direction !== Message::DIRECTION_OUTBOUND) {
+            throw new \RuntimeException('Solo se pueden reintentar mensajes salientes.');
+        }
+
+        // Solo los fallidos. Reintentar un 'sent' lo enviaría dos veces al
+        // cliente, y un 'pending' ya tiene su Job en la cola.
+        if ($message->status !== Message::STATUS_FAILED) {
+            throw new \RuntimeException(
+                "Solo se reintentan mensajes fallidos; este está en '{$message->status}'.",
+            );
+        }
+
+        $contact = $message->conversation?->contact;
+
+        if ($contact === null) {
+            throw new \RuntimeException('La conversación no tiene un contacto asociado.');
+        }
+
+        // Igual que en el envío original: se resuelve el Job antes de tocar la
+        // base, para no dejar el mensaje en 'pending' si el canal no existe.
+        $jobClass = $this->jobForChannel($contact->channel);
+
+        // Vuelve a 'pending' y se limpia la razón anterior: si falla otra vez,
+        // el motivo nuevo es el que importa. El agente ve que se está
+        // reintentando en vez de una burbuja roja que no cambia.
+        $message->forceFill([
+            'status'        => Message::STATUS_PENDING,
+            'failed_reason' => null,
+        ])->save();
+
+        $jobClass::dispatch($message->id);
+
+        return $message->refresh();
+    }
+
+    /**
      * @return class-string
      */
     private function jobForChannel(string $channel): string

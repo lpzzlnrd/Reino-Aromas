@@ -7,10 +7,12 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreMessageRequest;
 use App\Http\Requests\StoreTemplateMessageRequest;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Template;
 use App\Services\OutboundMessageService;
 use App\Services\TemplateService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Mensajes salientes del CRM.
@@ -120,5 +122,74 @@ class MessageController extends MetaBaseController
                 'created_at' => $message->created_at->toIso8601String(),
             ],
         ], 202);
+    }
+
+    /**
+     * POST /api/meta/messages/{message}/retry
+     *
+     * Reintenta un mensaje que falló.
+     *
+     * Antes de esto, un mensaje fallido no tenía salida: el agente veía la
+     * burbuja roja y su única opción era escribir el texto otra vez a mano.
+     * Responde 202 como el envío original — el reintento también pasa por la
+     * cola.
+     */
+    public function retry(Request $request, Message $message): JsonResponse
+    {
+        // Se carga la relación que el servicio necesita para elegir el Job.
+        $message->loadMissing('conversation.contact');
+
+        try {
+            $reintentado = $this->outboundMessages->retryFailedMessage($message);
+        } catch (\RuntimeException $e) {
+            // 409 y no 422: el problema no es el formato de la petición sino el
+            // estado del mensaje (ya enviado, o todavía en cola).
+            return $this->jsonError($e->getMessage(), 409);
+        }
+
+        return $this->jsonSuccess([
+            'queued'  => true,
+            'message' => [
+                'id'            => $reintentado->id,
+                'status'        => $reintentado->status,
+                'failed_reason' => $reintentado->failed_reason,
+            ],
+        ], 202);
+    }
+
+    /**
+     * GET /api/meta/messages/failed
+     *
+     * Mensajes salientes que fallaron, con su conversación y contacto.
+     *
+     * Es lo que hace VISIBLE el problema: hasta ahora un envío fallido solo
+     * existía como una fila con status 'failed' y una línea en el log. Nadie se
+     * enteraba salvo que abriera ese chat concreto.
+     */
+    public function failed(Request $request): JsonResponse
+    {
+        $mensajes = Message::query()
+            ->where('direction', Message::DIRECTION_OUTBOUND)
+            ->where('status', Message::STATUS_FAILED)
+            ->with(['conversation.contact:id,display_name,channel,channel_id', 'sender:id,name'])
+            // Los más recientes primero: un fallo de hace un mes ya no se
+            // reintenta, se investiga.
+            ->latest('created_at')
+            ->limit(100)
+            ->get();
+
+        return response()->json([
+            'total'    => $mensajes->count(),
+            'messages' => $mensajes->map(fn (Message $m): array => [
+                'id'              => $m->id,
+                'conversation_id' => $m->conversation_id,
+                'channel'         => $m->channel,
+                'body'            => $m->body,
+                'failed_reason'   => $m->failed_reason,
+                'created_at'      => $m->created_at?->toIso8601String(),
+                'contact_name'    => $m->conversation?->contact?->display_name,
+                'sender_name'     => $m->sender?->name,
+            ])->values(),
+        ]);
     }
 }

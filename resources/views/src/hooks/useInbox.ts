@@ -140,6 +140,9 @@ const loadingChats = ref(false)
 const loadingDetail = ref(false)
 const sending = ref(false)
 
+/** Id del mensaje que se esta reintentando, para deshabilitar su boton. */
+const retrying = ref<number | null>(null)
+
 const chatsError = ref<string | null>(null)
 const detailError = ref<string | null>(null)
 const sendError = ref<string | null>(null)
@@ -410,6 +413,51 @@ export function useInbox() {
         }
     }
 
+    /**
+     * Reintenta un mensaje que fallo.
+     *
+     * Antes de esto un fallo no tenia salida: el agente veia la burbuja roja y
+     * su unica opcion era escribir el texto otra vez a mano.
+     *
+     * Se actualiza el estado local a 'pending' de inmediato para que la burbuja
+     * pase de roja a "Enviando..." sin esperar el 202. El resultado real llega
+     * por el evento message.status del WebSocket.
+     */
+    const retryMessage = async (id: number): Promise<boolean> => {
+        retrying.value = id
+        sendError.value = null
+
+        const mensaje = detail.value?.messages.find((m) => m.id === id)
+
+        // Se guarda para revertir: si el reintento se rechaza, la burbuja debe
+        // volver a mostrar el fallo original y no quedarse en "Enviando...".
+        const estadoAnterior = mensaje?.status
+        const razonAnterior = mensaje?.failed_reason
+
+        if (mensaje) {
+            mensaje.status = 'pending'
+            mensaje.failed_reason = null
+        }
+
+        try {
+            await api.post(`/meta/messages/${id}/retry`)
+
+            return true
+        } catch (e: any) {
+            if (mensaje && estadoAnterior) {
+                mensaje.status = estadoAnterior
+                mensaje.failed_reason = razonAnterior ?? null
+            }
+
+            sendError.value =
+                e?.response?.data?.message ?? 'No se pudo reintentar el mensaje'
+
+            return false
+        } finally {
+            retrying.value = null
+        }
+    }
+
     const clearFilters = () => {
         filters.value = { search: '', channel: '', case: null, mine: false }
     }
@@ -538,6 +586,7 @@ export function useInbox() {
         loadingChats,
         loadingDetail,
         sending,
+        retrying,
         chatsError,
         detailError,
         sendError,
@@ -547,6 +596,7 @@ export function useInbox() {
         closeChat,
         sendMessage,
         sendTemplate,
+        retryMessage,
         setConversationStatus,
         updateTicket,
         clearFilters,
