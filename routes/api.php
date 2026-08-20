@@ -10,6 +10,7 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\Facebook\FacebookAuthController;
 use App\Http\Controllers\Facebook\FacebookPostController;
+use App\Http\Controllers\Meta\MetaAccountController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
@@ -343,6 +344,62 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             */
             Route::post('/posts', [FacebookPostController::class, 'store'])
                 ->name('posts.store');
+
+        });
+
+        /*
+        |=====================================================================
+        | Cuentas vinculadas (Embedded Signup) — Ajustes > Cuentas vinculadas
+        |=====================================================================
+        |
+        | El popup de Meta necesita el JS SDK cargado en la página: los datos
+        | del negocio llegan por postMessage, no por un redirect. El code de
+        | FB.login() vive 30s y se canjea con /exchange de inmediato.
+        */
+        Route::prefix('accounts')->name('accounts.')->group(function (): void {
+
+            /*
+            |----------------------------------------------------------------
+            | GET /api/meta/accounts
+            |
+            | Estado de vinculación de los 3 canales (tabla + .env unidos) y
+            | el app_id para inicializar el SDK en el frontend.
+            |----------------------------------------------------------------
+            */
+            Route::get('/', [MetaAccountController::class, 'index'])->name('index');
+
+            /*
+            |----------------------------------------------------------------
+            | POST /api/meta/accounts/{channel}/exchange
+            |
+            | Canjea el `code` de FB.login() por un token de larga duración
+            | y crea/actualiza la fila de meta_accounts para ese canal.
+            |----------------------------------------------------------------
+            */
+            Route::post('/{channel}/exchange', [MetaAccountController::class, 'exchange'])
+                ->name('exchange');
+
+            /*
+            |----------------------------------------------------------------
+            | POST /api/meta/accounts/{channel}/verify
+            |
+            | Junta los ids del negocio (waba_id, phone_number_id) que
+            | llegaron por postMessage con la fila creada en /exchange.
+            |----------------------------------------------------------------
+            */
+            Route::post('/{channel}/verify', [MetaAccountController::class, 'verify'])
+                ->name('verify');
+
+            /*
+            |----------------------------------------------------------------
+            | DELETE /api/meta/accounts/{channel}
+            |
+            | Desvincula la cuenta guardada en el CRM. No aplica a canales
+            | vinculados desde el .env (can_disconnect=false en /accounts).
+            |----------------------------------------------------------------
+            */
+            Route::delete('/{channel}', [MetaAccountController::class, 'destroy'])
+                ->name('destroy');
 
         });
 

@@ -1,12 +1,26 @@
 <script setup lang="ts">
+    import { onMounted } from 'vue'
     import Header from '../header/header.vue'
     import Instagram from '../../icons/social/icon.instagram.vue'
     import Facebook from '../../icons/social/icon.facebook.vue'
     import Whatsapp from '../../icons/social/icon.whatsapp.vue'
     import Plus from '../../icons/icon.plus.vue'
+    import { useMetaAccounts, type MetaChannel } from '@/hooks/useMetaAccounts'
 
-    const socialStyle = 'flex flex-col items-center gap-5 flex-1'
-    const btnStyle = 'flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl border-2 border-primary/20 text-primary/70 transition-all hover:cursor-pointer hover:bg-primary hover:text-white hover:border-primary'
+    const { accounts, linkingChannel, error, estadoDe, cargar, vincular, desvincular } = useMetaAccounts()
+
+    onMounted(cargar)
+
+    const btnStyle = 'flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl border-2 border-primary/20 text-primary/70 transition-all hover:cursor-pointer hover:bg-primary hover:text-white hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-primary/70'
+    const btnDangerStyle = 'flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl border-2 border-red-400/30 text-red-400/80 transition-all hover:cursor-pointer hover:bg-red-500 hover:text-white hover:border-red-500'
+
+    const etiquetaEstado = (channel: MetaChannel): string => {
+        const estado = estadoDe(channel)
+        if (!estado) return 'Cargando...'
+        if (estado.connected) return estado.name ? `Vinculado · ${estado.name}` : 'Vinculado'
+        if (!estado.signup_config_id) return 'Falta configurar en el .env'
+        return 'No vinculado'
+    }
 </script>
 
 <template>
@@ -19,6 +33,7 @@
             <section class="text-center flex flex-col gap-3 max-w-lg">
                 <h1 class="font-primary text-3xl text-primary">Cuentas vinculadas</h1>
                 <p class="text-sm text-primary/55 leading-relaxed">Vincula tus cuentas para obtener un control más claro de tus mensajes y clientela a través de tus plataformas.</p>
+                <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
             </section>
 
             <!-- Cards de plataformas -->
@@ -30,11 +45,23 @@
                     </div>
                     <div class="text-center">
                         <p class="font-semibold text-primary">Instagram</p>
-                        <p class="text-[11px] text-primary/40 mt-0.5">No vinculado</p>
+                        <p class="text-[11px] text-primary/40 mt-0.5">{{ etiquetaEstado('instagram') }}</p>
                     </div>
-                    <button :class="btnStyle">
+                    <button
+                        v-if="!estadoDe('instagram')?.connected"
+                        :class="btnStyle"
+                        :disabled="linkingChannel === 'instagram'"
+                        @click="vincular('instagram')"
+                    >
                         <Plus class="text-xs shrink-0"/>
-                        Vincular cuenta
+                        {{ linkingChannel === 'instagram' ? 'Conectando...' : 'Vincular cuenta' }}
+                    </button>
+                    <button
+                        v-else-if="estadoDe('instagram')?.can_disconnect"
+                        :class="btnDangerStyle"
+                        @click="desvincular('instagram')"
+                    >
+                        Desvincular
                     </button>
                 </div>
 
@@ -45,11 +72,23 @@
                     </div>
                     <div class="text-center">
                         <p class="font-semibold text-primary">Facebook</p>
-                        <p class="text-[11px] text-primary/40 mt-0.5">No vinculado</p>
+                        <p class="text-[11px] text-primary/40 mt-0.5">{{ etiquetaEstado('facebook') }}</p>
                     </div>
-                    <button :class="btnStyle">
+                    <button
+                        v-if="!estadoDe('facebook')?.connected"
+                        :class="btnStyle"
+                        :disabled="linkingChannel === 'facebook'"
+                        @click="vincular('facebook')"
+                    >
                         <Plus class="text-xs shrink-0"/>
-                        Vincular cuenta
+                        {{ linkingChannel === 'facebook' ? 'Conectando...' : 'Vincular cuenta' }}
+                    </button>
+                    <button
+                        v-else-if="estadoDe('facebook')?.can_disconnect"
+                        :class="btnDangerStyle"
+                        @click="desvincular('facebook')"
+                    >
+                        Desvincular
                     </button>
                 </div>
 
@@ -60,11 +99,23 @@
                     </div>
                     <div class="text-center">
                         <p class="font-semibold text-primary">WhatsApp</p>
-                        <p class="text-[11px] text-primary/40 mt-0.5">No vinculado</p>
+                        <p class="text-[11px] text-primary/40 mt-0.5">{{ etiquetaEstado('whatsapp') }}</p>
                     </div>
-                    <button :class="btnStyle">
+                    <button
+                        v-if="!estadoDe('whatsapp')?.connected"
+                        :class="btnStyle"
+                        :disabled="linkingChannel === 'whatsapp'"
+                        @click="vincular('whatsapp')"
+                    >
                         <Plus class="text-xs shrink-0"/>
-                        Vincular cuenta
+                        {{ linkingChannel === 'whatsapp' ? 'Conectando...' : 'Vincular cuenta' }}
+                    </button>
+                    <button
+                        v-else-if="estadoDe('whatsapp')?.can_disconnect"
+                        :class="btnDangerStyle"
+                        @click="desvincular('whatsapp')"
+                    >
+                        Desvincular
                     </button>
                 </div>
             </div>

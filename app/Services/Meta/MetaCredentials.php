@@ -45,6 +45,9 @@ class MetaCredentials
         'whatsapp_phone_number_id' => 'META_WHATSAPP_PHONE_NUMBER_ID',
         'facebook.page_id'           => 'META_FACEBOOK_PAGE_ID',
         'facebook.page_access_token' => 'META_FACEBOOK_PAGE_ACCESS_TOKEN',
+        'signup.facebook_config_id'  => 'META_SIGNUP_FACEBOOK_CONFIG_ID',
+        'signup.instagram_config_id' => 'META_SIGNUP_INSTAGRAM_CONFIG_ID',
+        'signup.whatsapp_config_id'  => 'META_SIGNUP_WHATSAPP_CONFIG_ID',
     ];
 
     /**
