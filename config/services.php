@@ -46,6 +46,28 @@ return [
 
         /*
         |----------------------------------------------------------------------
+        | Embedded Signup (el popup de vinculación)
+        |
+        | Cada canal necesita su propia "configuración" de Facebook Login for
+        | Business, creada en el dashboard de Meta. El id resultante lo pide el
+        | JS SDK como `config_id` al abrir el popup — sin él no arranca.
+        |
+        | Se pasan al frontend por GET /api/meta/accounts y NO por variables
+        | VITE_*: esas quedan congeladas en el bundle al compilar, así que
+        | cambiar de app exigiría un rebuild.
+        |
+        | OJO: Embedded Signup v2 se deprecia el 15 de octubre de 2026. Estas
+        | configuraciones deben crearse como v4.
+        |----------------------------------------------------------------------
+        */
+        'signup' => [
+            'whatsapp_config_id'  => env('META_SIGNUP_WHATSAPP_CONFIG_ID'),
+            'instagram_config_id' => env('META_SIGNUP_INSTAGRAM_CONFIG_ID'),
+            'facebook_config_id'  => env('META_SIGNUP_FACEBOOK_CONFIG_ID'),
+        ],
+
+        /*
+        |----------------------------------------------------------------------
         | Facebook Messenger
         |
         | page_id distingue quién habla en cada evento del webhook: Meta manda
@@ -79,26 +101,6 @@ return [
         | debe ir entre comillas dobles con los saltos escapados como \n.
         |----------------------------------------------------------------------
         */
-        /*
-        |----------------------------------------------------------------------
-        | Embedded Signup (popup de vinculación desde Ajustes > Cuentas)
-        |
-        | Cada canal necesita su config_id creado en el dashboard de Meta
-        | (Meta for Developers > WhatsApp/Instagram/Facebook Login for
-        | Business > Configurations). Se crean como v4: v2 se deprecia el
-        | 15/oct/2026.
-        |
-        | Se exponen al frontend por la API (MetaAccountController@index), NO
-        | por variables VITE_*: esas quedan congeladas en el bundle al
-        | compilar y cambiarlas exigiría un rebuild.
-        |----------------------------------------------------------------------
-        */
-        'signup' => [
-            'facebook_config_id'  => env('META_SIGNUP_FACEBOOK_CONFIG_ID'),
-            'instagram_config_id' => env('META_SIGNUP_INSTAGRAM_CONFIG_ID'),
-            'whatsapp_config_id'  => env('META_SIGNUP_WHATSAPP_CONFIG_ID'),
-        ],
-
         'flows' => [
             'private_key' => env('FLOWS_PRIVATE_KEY'),
             'passphrase'  => env('FLOWS_PASSPHRASE', ''),
