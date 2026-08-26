@@ -14,12 +14,22 @@
     import Gear from '../../icons/icon.setting.vue'
     import Close from '../../icons/icon.close.vue'
     import Bars from '../../icons/icon.bars.vue'
+    import { useModal } from '@/composables/useModal'
 
     const router = useRouter()
     const { user, logout } = useAuth()
 
     const open = ref(false)
     const close = () => (open.value = false)
+
+    /*
+     * Escape y scroll-lock del drawer movil. Era `fixed inset-0` sin bloquear el
+     * body, asi que el contenido de detras seguia scrolleando bajo el panel — el
+     * bug clasico de iOS — y al cerrar el foco no volvia al boton hamburguesa.
+     */
+    const panelDrawer = ref<HTMLElement | null>(null)
+
+    useModal(open, close, { panel: panelDrawer })
     const toggle = () => (open.value = !open.value)
 
     const goTo = (name: string) => { router.push({ name }); close() }
@@ -120,7 +130,13 @@
         <!-- Menú móvil overlay -->
         <transition name="slide">
             <div v-if="open" class="fixed inset-0 z-50 flex md:hidden">
-                <div class="w-72 bg-white/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6">
+                <div
+                    ref="panelDrawer"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Menú de navegación"
+                    class="w-72 bg-white/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6"
+                >
                     <header class="flex items-center justify-between mb-8">
                         <Logo class="w-20" />
                         <button @click="close" aria-label="Cerrar menú"

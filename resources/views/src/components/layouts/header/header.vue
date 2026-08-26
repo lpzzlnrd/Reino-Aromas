@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { computed, ref } from 'vue';
+    import { computed, onBeforeUnmount, ref, watch } from 'vue';
     import { useRoute } from 'vue-router';
     import { useAuth } from '@/composables/useAuth'
 
@@ -12,6 +12,38 @@
 
     const pageName = computed(() => (route.meta.title as string) ?? 'Panel de control')
     const menuOpen = ref(false)
+
+    /*
+     * El menu se cerraba SOLO con @mouseleave, y eso lo dejaba sin salida para
+     * teclado y para tactil: en el telefono el mouseleave se dispara de forma
+     * erratica y podia cerrarse antes de que el dedo llegara a "Cerrar sesion".
+     * Ahora cierra con Escape y con un clic fuera, que es lo que la gente
+     * intenta primero.
+     */
+    const alPresionarTecla = (evento: KeyboardEvent): void => {
+        if (evento.key === 'Escape') menuOpen.value = false
+    }
+
+    const alClicFuera = (evento: MouseEvent): void => {
+        const objetivo = evento.target as HTMLElement | null
+
+        if (objetivo?.closest('[data-menu-usuario]') === null) menuOpen.value = false
+    }
+
+    watch(menuOpen, (abierto) => {
+        if (abierto) {
+            document.addEventListener('keydown', alPresionarTecla)
+            document.addEventListener('click', alClicFuera, true)
+        } else {
+            document.removeEventListener('keydown', alPresionarTecla)
+            document.removeEventListener('click', alClicFuera, true)
+        }
+    })
+
+    onBeforeUnmount(() => {
+        document.removeEventListener('keydown', alPresionarTecla)
+        document.removeEventListener('click', alClicFuera, true)
+    })
 </script>
 
 <template>
@@ -46,9 +78,12 @@
             </button>
 
             <!-- Avatar + menú -->
-            <div v-if="user" class="relative pl-3 border-l border-primary/10">
+            <div v-if="user" data-menu-usuario class="relative pl-3 border-l border-primary/10">
                 <button
                     @click="menuOpen = !menuOpen"
+                    :aria-expanded="menuOpen"
+                    aria-haspopup="menu"
+                    :aria-label="`Menú de ${user.name}`"
                     class="flex items-center gap-2 rounded-xl hover:bg-white/60 px-2 py-1 transition-all"
                     type="button"
                 >
@@ -60,11 +95,12 @@
 
                 <div
                     v-if="menuOpen"
+                    role="menu"
                     class="absolute right-0 top-full mt-2 w-40 bg-white rounded-xl shadow-lg border border-primary/10 py-1 z-50"
-                    @mouseleave="menuOpen = false"
                 >
                     <button
                         @click="logout"
+                        role="menuitem"
                         class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
                         type="button"
                     >

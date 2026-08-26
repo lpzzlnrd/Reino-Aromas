@@ -37,7 +37,9 @@
     // La suscripción vive en el componente y no en el hook: useInbox es un
     // singleton que nunca se desmonta, así que dejarla ahí mantendría el canal
     // abierto al salir de la bandeja.
-    const { disponible: enVivo, escuchar } = useRealtime()
+    // `conectado` y no `disponible`: el segundo solo dice que el build trae
+    // credenciales de Reverb, no que el socket esté vivo.
+    const { conectado: enVivo, escuchar, alVolverLaConexion } = useRealtime()
 
     let searchTimer: number | undefined
 
@@ -106,6 +108,14 @@
         escuchar('tickets', {
             'ticket.updated': onTicketUpdated,
         })
+
+        // Al volver de un corte hay que recargar: los eventos que se emitieron
+        // mientras el socket estaba caído no se reencolan, así que la lista
+        // quedaría con datos viejos sin que nada lo delate.
+        alVolverLaConexion(() => {
+            loadChats()
+            loadCounts()
+        })
     })
 </script>
 
@@ -115,17 +125,32 @@
          de quedar lado a lado. -->
     <div class="flex h-full min-h-screen w-full">
 
-    <!-- Panel lateral de chats -->
-    <div class="hidden md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60">
+    <!-- Panel lateral de chats.
+
+         En movil la lista OCUPA la pantalla mientras no hay chat abierto y se
+         esconde al abrir uno; en escritorio esta siempre al lado. Antes era
+         `hidden md:flex` a secas, asi que en el telefono no habia lista y la
+         bandeja quedaba en blanco: no habia forma de elegir una conversacion. -->
+    <div
+        :class="[
+            'md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60',
+            selectedId === null ? 'flex w-full' : 'hidden',
+        ]"
+    >
 
         <!-- Buscador y filtros -->
         <div class="p-3 border-b border-primary/8 flex flex-col gap-2">
             <label class="input-group group cursor-text">
                 <Search class="text-primary/40 group-focus-within:text-primary/70 shrink-0 transition-colors" />
+                <!-- id propio: header.vue ya usa "search-bar" y los dos se
+                     pintan a la vez en /app/messages. Un id duplicado rompe la
+                     asociacion de labels y la navegacion por rotulo de los
+                     lectores de pantalla. -->
                 <input
-                    id="search-bar"
+                    id="inbox-search"
                     v-model="filters.search"
-                    class="focus:outline-none bg-transparent text-sm w-full placeholder:text-primary/30"
+                    aria-label="Buscar conversación"
+                    class="focus:outline-none bg-transparent text-sm w-full placeholder:text-primary/40"
                     type="text"
                     placeholder="Buscar conversación..."
                 >
@@ -157,11 +182,18 @@
 
                 <div class="flex items-center gap-2">
                     <!-- Sin esto el agente no sabe si la lista está al día o si
-                         tiene que recargar a mano. -->
+                         tiene que recargar a mano.
+
+                         Se mira `enVivo` (el socket de verdad) y no si Reverb
+                         está configurado: con el servidor caído la insignia se
+                         quedaba en verde y el botón de Actualizar no aparecía,
+                         así que el agente miraba una bandeja congelada
+                         convencido de que estaba al día. -->
                     <span
                         v-if="enVivo"
                         class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-600"
                         title="Las conversaciones se actualizan solas"
+                        role="status"
                     >
                         <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                         En vivo
@@ -257,7 +289,8 @@
         </div>
     </div>
 
-    <router-view class="flex-1 min-w-0" />
+    <!-- En movil el chat abierto ocupa todo; sin chat, lo tapa la lista. -->
+    <router-view :class="['flex-1 min-w-0', selectedId === null ? 'hidden md:block' : 'block']" />
 
     </div>
 </template>

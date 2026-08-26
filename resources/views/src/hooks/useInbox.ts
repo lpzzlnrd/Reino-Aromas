@@ -147,6 +147,26 @@ const chatsError = ref<string | null>(null)
 const detailError = ref<string | null>(null)
 const sendError = ref<string | null>(null)
 
+/**
+ * Por qué no se pudieron cargar las plantillas.
+ *
+ * Aparte de templates=[]: fuera de la ventana de 24h las plantillas son el
+ * único envío posible, así que un fallo de red no puede mostrarse como "este
+ * chat no tiene plantillas".
+ */
+const templatesError = ref<string | null>(null)
+
+/**
+ * Ids de mensajes ya procesados por onMessageCreated.
+ *
+ * MessageCreated se emite al canal del chat Y al de la bandeja, y las dos
+ * vistas escuchan el mismo handler: sin esto cada mensaje se procesa dos veces.
+ */
+const procesados = new Set<number>()
+
+/** Cuántos ids se recuerdan antes de podar el Set. */
+const LIMITE_PROCESADOS = 200
+
 const filters = ref<InboxFilters>({
     search: '',
     channel: '',
@@ -246,11 +266,21 @@ export function useInbox() {
 
         try {
             const { data } = await api.get<ChatDetail>(`/meta/conversations/${id}`)
+
+            // Solo se pinta si este sigue siendo el chat abierto. Sin esto,
+            // abrir un chat lento y clickear otro rápido dejaba que la respuesta
+            // tardía del primero sobrescribiera al segundo: se veía la
+            // conversación equivocada con la fila correcta resaltada en la
+            // lista. sendMessage ya se protegía así; openChat no.
+            if (selectedId.value !== id) return
+
             detail.value = data
         } catch {
+            if (selectedId.value !== id) return
+
             detailError.value = 'No se pudo abrir la conversación'
         } finally {
-            loadingDetail.value = false
+            if (selectedId.value === id) loadingDetail.value = false
         }
 
         // Las plantillas son secundarias y van aparte: si fallan, el agente
@@ -265,11 +295,24 @@ export function useInbox() {
     }
 
     const loadTemplates = async (id: number) => {
+        templatesError.value = null
+
         try {
             const { data } = await api.get<ChatTemplate[]>(`/conversations/${id}/templates`)
+
+            if (selectedId.value !== id) return
+
             templates.value = data ?? []
         } catch {
+            if (selectedId.value !== id) return
+
             templates.value = []
+
+            // Fuera de la ventana de 24h las plantillas son el ÚNICO canal de
+            // envío. Decir "no hay plantillas" cuando lo que falló fue la red
+            // afirma un hecho de negocio falso y deja al agente sin saber que
+            // puede reintentar.
+            templatesError.value = 'No se pudieron cargar las plantillas. Reintenta.'
         }
     }
 
@@ -382,9 +425,18 @@ export function useInbox() {
         }
     }
 
-    /** Actualización parcial del ticket (estado, prioridad, notas). */
+    /**
+     * Actualización parcial del ticket (estado, prioridad, notas, asignación).
+     *
+     * `assigned_user_id` va aparte de los campos de ChatTicket porque el tipo
+     * expone `assigned_user` (el objeto que devuelve el backend) y la API espera
+     * el id. Estaba excluido de esta firma, así que TypeScript rechazaba en
+     * compilación cualquier intento de asignar desde el chat: el backend lo
+     * aceptaba desde el principio y no había forma de mandarlo.
+     */
     const updateTicket = async (
-        payload: Partial<Pick<ChatTicket, 'status' | 'priority' | 'notes' | 'city' | 'course_interest'>>,
+        payload: Partial<Pick<ChatTicket, 'status' | 'priority' | 'notes' | 'city' | 'course_interest'>>
+            & { assigned_user_id?: number | null },
     ): Promise<boolean> => {
         const ticket = detail.value?.ticket
         if (!ticket) return false
@@ -407,8 +459,12 @@ export function useInbox() {
             void loadCounts()
 
             return true
-        } catch {
-            detailError.value = 'No se pudo actualizar el ticket'
+        } catch (e: any) {
+            // El mensaje del servidor primero: un 422 de validación y una caída
+            // de red mostraban el mismo texto genérico.
+            detailError.value =
+                e?.response?.data?.message ?? 'No se pudo actualizar el ticket'
+
             return false
         }
     }
@@ -483,6 +539,28 @@ export function useInbox() {
         message: ChatMessage
     }): void => {
         const { conversation_id: conversationId, message } = payload
+
+        // MessageCreated se emite a DOS canales (conversations.{id} y inbox) y
+        // las dos vistas registran este mismo handler, así que con el chat
+        // abierto cada mensaje llega dos veces. La dedup de más abajo salvaba la
+        // burbuja, pero no el reordenamiento de la lista ni el loadChats() de la
+        // rama else: una conversación nueva disparaba DOS GET /meta/chats
+        // simultáneos, y con varios agentes eso es una tormenta de requests.
+        if (procesados.has(message.id)) return
+
+        procesados.add(message.id)
+
+        // La ventana se poda para que el Set no crezca sin límite en una sesión
+        // larga: solo interesa descartar el eco inmediato del otro canal.
+        if (procesados.size > LIMITE_PROCESADOS) {
+            const sobran = procesados.size - LIMITE_PROCESADOS
+            let quitados = 0
+
+            for (const id of procesados) {
+                procesados.delete(id)
+                if (++quitados >= sobran) break
+            }
+        }
 
         // Al chat abierto, si es el suyo.
         if (detail.value?.id === conversationId) {
@@ -589,6 +667,7 @@ export function useInbox() {
         retrying,
         chatsError,
         detailError,
+        templatesError,
         sendError,
         loadChats,
         loadCounts,

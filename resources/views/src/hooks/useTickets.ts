@@ -1,5 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import api from '@/lib/axios'
+import { useAuth } from '@/composables/useAuth'
 import {
     CaseStatus,
     ETIQUETA_POR_STATUS,
@@ -87,6 +88,22 @@ export function useTickets() {
      */
     const moviendo = ref<number | null>(null)
 
+    /** Id del ticket cuya asignación se está guardando. */
+    const asignando = ref<number | null>(null)
+
+    // Para saber qué es "mío" cuando entra un evento con el filtro activo.
+    const { user: usuarioActual } = useAuth()
+
+    /**
+     * Número de secuencia del último movimiento pedido por ticket.
+     *
+     * Dos arrastres rápidos del mismo ticket dejaban dos PATCH en vuelo y la
+     * respuesta que llegaba última ganaba, aunque fuera la del movimiento viejo.
+     * Comparar la secuencia antes de aplicar (o revertir) descarta las
+     * respuestas obsoletas.
+     */
+    const secuenciaPorTicket = new Map<number, number>()
+
     const filters = ref<BoardFilters>({ priority: '', mine: false })
 
     const total = computed(() =>
@@ -142,6 +159,7 @@ export function useTickets() {
             setCounts(data ?? {})
         } catch {
             // Decorativos: el tablero ya muestra su propio contador por columna.
+            // No se pisa `error`, que es el de la carga del tablero.
         }
     }
 
@@ -188,9 +206,28 @@ export function useTickets() {
         const origen = ETIQUETA_POR_STATUS[ticket.status]
         const status = STATUS_POR_ETIQUETA[destino]
 
-        // Soltar la tarjeta en su propia columna (reordenar) no es un cambio de
-        // estado: el backend lo ignoraría y sobra el request.
+        // Soltar la tarjeta en su propia columna no es un cambio de estado: el
+        // backend lo ignoraria y sobra el request. El reorden manual dentro de
+        // una columna esta desactivado en el tablero (:sort="false") porque no
+        // hay columna de orden en la BD: se veia moverse y se perdia en la
+        // siguiente recarga.
         if (status === ticket.status) return true
+
+        // Índice donde estaba, para devolverla a su sitio y no al final de la
+        // columna: el tablero va ordenado por prioridad, y un `push` deja un
+        // ticket urgente debajo de los de prioridad baja.
+        const posicionPrevia = origen
+            ? board[origen].findIndex((t) => t.id === id)
+            : -1
+
+        // Cada movimiento lleva su número de secuencia. Dos arrastres rápidos
+        // del mismo ticket dejaban dos PATCH en vuelo: la respuesta que llegaba
+        // última ganaba, aunque fuera la del movimiento viejo, y la vista
+        // quedaba mostrando algo que el servidor no tenía.
+        const secuencia = (secuenciaPorTicket.get(id) ?? 0) + 1
+        secuenciaPorTicket.set(id, secuencia)
+
+        const sigueVigente = (): boolean => secuenciaPorTicket.get(id) === secuencia
 
         // Se adelanta el estado local para que el badge de la tarjeta concuerde
         // con la columna donde ya está dibujada.
@@ -200,30 +237,115 @@ export function useTickets() {
         moviendo.value = id
         error.value = null
 
+        let respuesta: { ticket?: BoardTicket } | undefined
+
         try {
             const { data } = await api.patch(`/tickets/${id}`, { status })
-            const actualizado = data.ticket as BoardTicket | undefined
+            respuesta = data as { ticket?: BoardTicket } | undefined
+        } catch (e) {
+            // Un movimiento que ya quedó obsoleto no revierte nada: la tarjeta
+            // está donde la dejó el arrastre siguiente.
+            if (!sigueVigente()) return false
 
-            // El servidor devuelve el ticket serializado con reserved_at y
-            // closed_at ya calculados, que el front no sabe deducir.
-            if (actualizado) Object.assign(ticket, actualizado)
+            revertir(id, origen, posicionPrevia)
 
-            void loadCounts()
-
-            return true
-        } catch {
-            // Reversión: vuelve a su columna de origen.
-            ticket.status = STATUS_POR_ETIQUETA[origen]
-            ticket.status_label = origen
-
-            const extraido = extraer(id)
-            if (extraido && origen) board[origen].push(extraido.ticket)
-
-            error.value = 'No se pudo mover la tarjeta. Volvió a su columna.'
+            error.value = mensajeDeError(e, 'No se pudo mover la tarjeta. Volvió a su columna.')
 
             return false
         } finally {
-            moviendo.value = null
+            // Solo libera el bloqueo si nadie arrastró después: antes la
+            // respuesta del primer PATCH desbloqueaba la tarjeta con el segundo
+            // todavía en vuelo.
+            if (sigueVigente()) moviendo.value = null
+        }
+
+        if (!sigueVigente()) return false
+
+        // El servidor devuelve el ticket serializado con reserved_at y
+        // closed_at ya calculados, que el front no sabe deducir. Se lee FUERA
+        // del try: un cuerpo inesperado lanzaba TypeError, caía en el catch y
+        // revertía una tarjeta que el servidor sí había guardado.
+        if (respuesta?.ticket) Object.assign(ticket, respuesta.ticket)
+
+        void loadCounts()
+
+        return true
+    }
+
+    /**
+     * Devuelve una tarjeta a su columna y posición original.
+     *
+     * Restaura el índice y no un `push` al final: el tablero va ordenado por
+     * prioridad y soltar un ticket urgente debajo de los de prioridad baja
+     * desordena el triaje.
+     */
+    const revertir = (id: number, origen: CaseStatus | undefined, posicion: number): void => {
+        if (!origen) return
+
+        const extraido = extraer(id)
+        if (!extraido) return
+
+        extraido.ticket.status = STATUS_POR_ETIQUETA[origen]
+        extraido.ticket.status_label = origen
+
+        const destino = board[origen]
+        const indice = posicion >= 0 && posicion <= destino.length ? posicion : destino.length
+
+        destino.splice(indice, 0, extraido.ticket)
+    }
+
+    /**
+     * Mensaje del servidor si lo hay, o el de respaldo.
+     *
+     * Antes los `catch {}` descartaban el error sin mirarlo: un 422 de
+     * validación y una caída de red mostraban el mismo texto genérico.
+     */
+    const mensajeDeError = (e: unknown, respaldo: string): string => {
+        const mensaje = (e as { response?: { data?: { message?: unknown } } })
+            ?.response?.data?.message
+
+        return typeof mensaje === 'string' && mensaje !== '' ? mensaje : respaldo
+    }
+
+    /**
+     * Asigna (o desasigna, con null) un ticket a un agente.
+     *
+     * El backend ya lo aceptaba desde el principio: UpdateTicketRequest valida
+     * `assigned_user_id` y TicketController::asignar() lo registra en el log de
+     * auditoría. Lo que faltaba era que el frontend lo mandara — sin esto el
+     * filtro "Asignados a mí" y la alerta de tickets sin asignar del dashboard
+     * eran funciones muertas: señalaban un problema sin ofrecer el arreglo.
+     */
+    const assignTicket = async (id: number, usuarioId: number | null): Promise<boolean> => {
+        const ticket = buscar(id)
+        if (!ticket) return false
+
+        const previo = ticket.assigned_user
+
+        asignando.value = id
+        error.value = null
+
+        try {
+            const { data } = await api.patch(`/tickets/${id}`, { assigned_user_id: usuarioId })
+            const actualizado = (data as { ticket?: BoardTicket } | undefined)?.ticket
+
+            if (actualizado) {
+                Object.assign(ticket, actualizado)
+            } else {
+                // Sin cuerpo de respuesta se refleja lo pedido: el usuario ya
+                // eligió y dejarlo sin cambio visible parecería que falló.
+                ticket.assigned_user = usuarioId === null ? null : ticket.assigned_user
+            }
+
+            return true
+        } catch (e) {
+            ticket.assigned_user = previo
+
+            error.value = mensajeDeError(e, 'No se pudo asignar el caso.')
+
+            return false
+        } finally {
+            if (asignando.value === id) asignando.value = null
         }
     }
 
@@ -267,6 +389,30 @@ export function useTickets() {
 
         const existente = buscar(ticket.id)
 
+        // Arrastre local en vuelo sobre ESTE ticket: no se toca la columna.
+        //
+        // La guarda de abajo solo cubría el eco del propio evento (mismo
+        // status). Pero moveTicket adelanta ticket.status antes del await, así
+        // que un evento de otro agente con un status distinto entraba, movía la
+        // tarjeta de columna, y cuando el PATCH local respondía el objeto
+        // quedaba en un array y con el status de otro: la tarjeta se dibujaba en
+        // "Cerrado" con la insignia de "Reservado". Mutar el array mientras
+        // Sortable lo está manipulando además corrompe su estado interno.
+        //
+        // Se fusionan los datos (prioridad, notas, asignación) sin reubicar: la
+        // columna la decide el PATCH local, que es el que el agente pidió.
+        if (existente && moviendo.value === ticket.id) {
+            const statusLocal = existente.status
+            const etiquetaLocal = existente.status_label
+
+            Object.assign(existente, ticket)
+
+            existente.status = statusLocal
+            existente.status_label = etiquetaLocal
+
+            return
+        }
+
         // Evento propio: la tarjeta ya está donde debe y moveTicket ya la
         // completó con la respuesta del PATCH. Sin esta salida se re-insertaría
         // encima del arrastre que el agente acaba de hacer.
@@ -277,8 +423,19 @@ export function useTickets() {
 
         // Respeta los filtros activos: si el tablero filtra por prioridad, un
         // ticket que ya no encaja se va del tablero en vez de saltar de columna.
-        const encaja =
+        //
+        // También el filtro de asignación: antes solo se miraba la prioridad, así
+        // que con "Asignados a mí" activo entraban tickets de otros agentes al
+        // tablero filtrado.
+        const encajaPrioridad =
             filters.value.priority === '' || ticket.priority === filters.value.priority
+
+        const encajaAsignacion =
+            !filters.value.mine
+            || (usuarioActual.value !== null
+                && ticket.assigned_user?.id === usuarioActual.value.id)
+
+        const encaja = encajaPrioridad && encajaAsignacion
 
         if (existente) {
             // Se conservan los campos que el evento no manda (contact,
@@ -309,6 +466,8 @@ export function useTickets() {
         loadBoard,
         loadCounts,
         moveTicket,
+        assignTicket,
+        asignando,
         clearFilters,
         onTicketUpdated,
     }

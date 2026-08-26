@@ -6,6 +6,7 @@
     import Search from '../../icons/icon.search.vue'
     import Close from '../../icons/icon.close.vue'
     import api from '@/lib/axios'
+    import { useModal } from '@/composables/useModal'
 
     type AdminUser = {
         id: number
@@ -84,6 +85,11 @@
         formErrors.value = {}
         showModal.value = true
     }
+
+    const panelModal = ref<HTMLElement | null>(null)
+
+    // Escape, foco y scroll-lock: ninguno de los modales los tenia.
+    useModal(showModal, () => closeModal(), { panel: panelModal })
 
     const closeModal = () => {
         showModal.value = false
@@ -262,7 +268,13 @@
                 <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" @click="closeModal" />
 
                 <!-- Panel del modal -->
-                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]">
+                <div
+                    ref="panelModal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Datos del usuario"
+                    class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]"
+                >
                     <!-- Header modal -->
                     <div class="flex items-center justify-between px-6 py-5 border-b border-primary/8">
                         <div>

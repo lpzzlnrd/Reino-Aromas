@@ -6,6 +6,7 @@
     import Close from '../../icons/icon.close.vue'
     import Alert from '../../icons/icon.alert.vue'
     import api from '@/lib/axios'
+    import { useModal } from '@/composables/useModal'
 
     type Ciudad = 'caracas' | 'valencia' | 'barquisimeto' | 'maracay' | 'margarita'
     type Canal  = 'whatsapp' | 'instagram' | 'facebook'
@@ -235,6 +236,17 @@
         showModal.value = true
         pedirPreview()
     }
+
+    const panelEditor = ref<HTMLElement | null>(null)
+
+    useModal(showModal, () => cerrarModal(), { panel: panelEditor })
+
+    // La confirmacion de borrado NO cierra con Escape: es destructiva y un
+    // Escape reflejo no deberia decidir por el agente... pero si debe poder
+    // salir, asi que cierra con el backdrop y con Cancelar.
+    useModal(confirmandoBorrado, () => { confirmandoBorrado.value = null }, {
+        cerrarConEscape: false,
+    })
 
     const cerrarModal = () => {
         showModal.value = false
@@ -490,7 +502,13 @@
                 <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" @click="cerrarModal" />
 
-                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-y-auto max-h-[92vh]">
+                    <div
+                        ref="panelEditor"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Editor de plantilla"
+                        class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-y-auto max-h-[92vh]"
+                    >
                         <!-- Header -->
                         <div class="flex items-center justify-between px-6 py-5 border-b border-primary/8 sticky top-0 bg-white z-10">
                             <div>
@@ -802,7 +820,12 @@
                 <div v-if="confirmandoBorrado" class="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" @click="confirmandoBorrado = null" />
 
-                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Confirmar el borrado"
+                        class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+                    >
                         <h3 class="text-base font-primary text-primary">¿Borrar esta plantilla?</h3>
                         <p class="text-sm text-primary/55 mt-2 leading-relaxed">
                             Se eliminará <strong class="text-primary">{{ confirmandoBorrado.name }}</strong>.

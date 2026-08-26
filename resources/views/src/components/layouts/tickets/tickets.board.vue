@@ -1,11 +1,12 @@
 <script setup lang="ts">
-    import { onMounted, watch } from 'vue'
+    import { onMounted, reactive, watch } from 'vue'
     import { useRouter } from 'vue-router'
     import { VueDraggable } from 'vue-draggable-plus'
     import type { SortableEvent } from 'sortablejs'
     import { CaseStatus } from '@/hooks/caseStatus'
     import { PRIORIDADES, useTickets, type BoardTicket } from '@/hooks/useTickets'
     import { useRealtime } from '@/hooks/useRealtime'
+    import { useAssignableUsers } from '@/hooks/useAssignableUsers'
     import Header from '../header/header.vue'
     import Whatsapp from '../../icons/social/icon.whatsapp.vue'
     import Instagram from '../../icons/social/icon.instagram.vue'
@@ -34,13 +35,18 @@
         loadBoard,
         loadCounts,
         moveTicket,
+        assignTicket,
+        asignando,
         clearFilters,
         onTicketUpdated,
     } = useTickets()
 
     // La suscripción va en el componente, nunca en el hook: tiene que morir con
     // la vista o el canal quedaría abierto al salir del tablero.
-    const { disponible: enVivo, escuchar } = useRealtime()
+    // `conectado` y no `disponible`: el segundo solo dice que el build trae
+    // credenciales de Reverb, no que el socket esté vivo. Con Reverb caído la
+    // insignia se quedaba en verde y el botón de Actualizar no se pintaba.
+    const { conectado: enVivo, escuchar, alVolverLaConexion } = useRealtime()
 
     /**
      * Fin del arrastre.
@@ -87,7 +93,32 @@
 
     const initials = (name: string | null): string => {
         if (!name) return '?'
-        return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+
+        // El filter descarta los vacíos que deja un doble espacio: "Ana  Pérez"
+        // producía "AU" al leer n[0] de un string vacío.
+        return name
+            .split(' ')
+            .filter((n) => n !== '')
+            .map((n) => n[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase()
+    }
+
+    /**
+     * Ids con avatar roto: las URLs de la CDN de Meta caducan y sin esto se veía
+     * el icono de imagen partida del navegador dentro del círculo.
+     */
+    const avataresRotos = reactive(new Set<number>())
+
+    /* ── Asignación ──────────────────────────────────────────────────────── */
+
+    const { activos: agentes, loadUsers } = useAssignableUsers()
+
+    const onAssign = (id: number, event: Event): void => {
+        const valor = (event.target as HTMLSelectElement).value
+
+        void assignTicket(id, valor === '' ? null : Number(valor))
     }
 
     const relativeTime = (iso: string | null): string => {
@@ -117,6 +148,17 @@
         escuchar('tickets', {
             'ticket.updated': onTicketUpdated,
         })
+
+        // Al volver de un corte hay que recargar el tablero: los eventos
+        // emitidos durante la caida no se reencolan y las tarjetas quedarian
+        // en columnas que el servidor ya no tiene.
+        alVolverLaConexion(() => {
+            loadBoard()
+            loadCounts()
+        })
+
+        // Los agentes para el selector de cada tarjeta.
+        void loadUsers()
     })
 </script>
 
@@ -172,8 +214,24 @@
             </div>
         </section>
 
-        <div v-if="error" class="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700">
-            {{ error }}
+        <!-- role=alert para que un lector de pantalla lo anuncie, y un boton
+             de reintento: antes el bloque era un callejon sin salida y con
+             Reverb configurado el boton "Actualizar" quedaba oculto por el
+             v-else, asi que no habia forma de recargar sin refrescar el
+             navegador. -->
+        <div
+            v-if="error"
+            role="alert"
+            class="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-100 flex items-start justify-between gap-3"
+        >
+            <p class="text-sm text-red-700 leading-relaxed">{{ error }}</p>
+            <button
+                type="button"
+                @click="loadBoard(); loadCounts()"
+                class="text-[10px] font-bold uppercase tracking-widest text-red-700 hover:text-red-900 cursor-pointer shrink-0 underline"
+            >
+                Reintentar
+            </button>
         </div>
 
         <p v-if="loading" class="px-1 py-12 text-center text-sm text-primary/40">
@@ -209,6 +267,7 @@
                     v-model="board[status]"
                     :data-status="status"
                     :group="{ name: 'tickets', pull: true, put: true }"
+                    :sort="false"
                     :animation="150"
                     ghost-class="opacity-40"
                     drag-class="rotate-1"
@@ -223,18 +282,31 @@
                         :key="ticket.id"
                         :data-ticket-id="ticket.id"
                         @click="abrirChat"
+                        @keydown.enter.prevent="abrirChat"
+                        @keydown.space.prevent="abrirChat"
+                        tabindex="0"
+                        role="button"
+                        :aria-label="`Caso de ${ticket.contact?.display_name || 'contacto sin nombre'}, ${status}, prioridad ${priorityLabel(ticket.priority)}. Abrir la conversación.`"
+                        :aria-busy="moviendo === ticket.id"
                         :class="[
-                            'rounded-xl bg-white/80 border border-primary/8 p-3 cursor-grab active:cursor-grabbing hover:bg-white transition-all',
+                            'rounded-xl bg-white/80 border border-primary/8 p-3 cursor-grab active:cursor-grabbing hover:bg-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
                             priorityClass(ticket.priority),
                             moviendo === ticket.id ? 'opacity-50 pointer-events-none' : ''
                         ]"
                     >
                         <!-- Contacto -->
                         <div class="flex items-center gap-2 mb-1.5">
+                            <!-- alt vacío: el nombre ya va en texto al lado, así
+                                 que anunciarlo dos veces sobra. Las URLs de la
+                                 CDN de Meta caducan, de ahí el @error. -->
                             <img
-                                v-if="ticket.contact?.profile_picture_url"
+                                v-if="ticket.contact?.profile_picture_url && !avataresRotos.has(ticket.id)"
                                 :src="ticket.contact.profile_picture_url"
-                                :alt="ticket.contact.display_name ?? 'Contacto'"
+                                alt=""
+                                loading="lazy"
+                                width="28"
+                                height="28"
+                                @error="avataresRotos.add(ticket.id)"
                                 class="w-7 h-7 rounded-full object-cover shrink-0"
                             >
                             <div
@@ -248,9 +320,13 @@
                                 {{ ticket.contact?.display_name || 'Sin nombre' }}
                             </p>
 
+                            <!-- El :is se evalúa junto al v-if, así que sin el
+                                 ?. un contacto null revienta el render de toda
+                                 la tarjeta. -->
                             <component
-                                :is="channelIcon(ticket.contact.channel)"
                                 v-if="ticket.contact"
+                                :is="channelIcon(ticket.contact?.channel)"
+                                aria-hidden="true"
                                 class="text-xs shrink-0 text-primary/40"
                             />
                         </div>
@@ -272,15 +348,39 @@
                             </span>
                         </div>
 
-                        <!-- Pie -->
-                        <div class="flex items-center justify-between gap-2 text-[10px] text-primary/40">
-                            <span class="truncate">
-                                {{ ticket.assigned_user?.name ?? 'Sin asignar' }}
+                        <!-- Pie: prioridad en texto (antes solo se distinguía
+                             por el color del borde, invisible para un lector de
+                             pantalla y para quien no distingue esos colores) y
+                             el tiempo desde el último cambio. -->
+                        <div class="flex items-center justify-between gap-2 text-[10px] text-primary/50 mb-2">
+                            <span class="shrink-0 font-semibold uppercase tracking-wider">
+                                {{ priorityLabel(ticket.priority) }}
                             </span>
-                            <span class="shrink-0" :title="priorityLabel(ticket.priority)">
+                            <span class="shrink-0" :title="`Última actividad: ${relativeTime(ticket.updated_at)}`">
                                 {{ relativeTime(ticket.updated_at) }}
                             </span>
                         </div>
+
+                        <!-- Asignación desde la tarjeta. El @click.stop y el
+                             @mousedown.stop son necesarios: sin ellos abrir el
+                             desplegable dispara abrirChat y Sortable interpreta
+                             el clic como el inicio de un arrastre. -->
+                        <select
+                            :value="ticket.assigned_user?.id ?? ''"
+                            @change="onAssign(ticket.id, $event)"
+                            @click.stop
+                            @mousedown.stop
+                            @keydown.enter.stop
+                            @keydown.space.stop
+                            :disabled="asignando === ticket.id"
+                            :aria-label="`Agente asignado al caso de ${ticket.contact?.display_name || 'contacto sin nombre'}`"
+                            class="w-full text-[10px] py-1 px-1.5 rounded-lg bg-white border border-primary/12 text-primary/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:cursor-wait"
+                        >
+                            <option value="">Sin asignar</option>
+                            <option v-for="u in agentes" :key="u.id" :value="u.id">
+                                {{ u.name }}
+                            </option>
+                        </select>
                     </article>
 
                     <p
