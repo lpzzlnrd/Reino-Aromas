@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Models\Contact;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\Meta\FacebookAccountService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Carbon;
@@ -20,6 +21,18 @@ class ProcessMetaWebhookJob implements ShouldQueue
     public int $tries = 3;
 
     /**
+     * Nombre de relleno cuando Meta no da el perfil.
+     *
+     * El webhook de Messenger solo trae el PSID: el nombre hay que pedirlo a la
+     * User Profile API, y eso exige Advanced Access de "Business Asset User
+     * Profile Access" (App Review). Sin eso Meta devuelve {} y no hay nombre
+     * que guardar. Tampoco lo hay para cuentas de Messenger creadas con número
+     * de teléfono (error 2018218) ni para quien llegó por Click-to-Messenger y
+     * todavía no respondió.
+     */
+    public const NOMBRE_DESCONOCIDO = 'Facebook User';
+
+    /**
      * @var list<int>
      */
     public array $backoff = [10, 30, 120];
@@ -31,7 +44,7 @@ class ProcessMetaWebhookJob implements ShouldQueue
         private array $payload,
     ) {}
 
-    public function handle(): void
+    public function handle(FacebookAccountService $accounts): void
     {
         $entries = $this->payload['entry'] ?? [];
         if (! is_array($entries)) {
@@ -53,7 +66,7 @@ class ProcessMetaWebhookJob implements ShouldQueue
                     continue;
                 }
 
-                $this->persistMessagingEvent($event);
+                $this->persistMessagingEvent($event, $accounts);
             }
         }
     }
@@ -66,9 +79,39 @@ class ProcessMetaWebhookJob implements ShouldQueue
     }
 
     /**
+     * Pide a Meta el nombre y la foto de quien escribió.
+     *
+     * Devuelve null (y el contacto queda con el nombre de relleno) si no hay
+     * page token configurado o si Meta no da el perfil. Nunca revienta: un
+     * mensaje sin nombre se guarda igual — perder el mensaje por no saber cómo
+     * se llama el cliente sería mucho peor que mostrarlo sin nombre.
+     *
+     * @return array{name: string, profile_pic: ?string}|null
+     */
+    private function resolverPerfil(string $psid, FacebookAccountService $accounts): ?array
+    {
+        $pageToken = (string) config('services.meta.facebook.page_access_token');
+
+        if ($pageToken === '') {
+            return null;
+        }
+
+        $perfil = $accounts->fetchUserProfile($psid, $pageToken);
+
+        // fetchUserProfile ya devuelve el nombre de relleno cuando Meta responde
+        // con un objeto vacío. Se descarta aquí para que el llamador distinga
+        // "Meta no sabe" de "Meta dio un nombre".
+        if ($perfil === null || ($perfil['name'] ?? '') === self::NOMBRE_DESCONOCIDO) {
+            return null;
+        }
+
+        return $perfil;
+    }
+
+    /**
      * @param array<string, mixed> $event
      */
-    private function persistMessagingEvent(array $event): void
+    private function persistMessagingEvent(array $event, FacebookAccountService $accounts): void
     {
         $senderId = (string) ($event['sender']['id'] ?? '');
         $recipientId = (string) ($event['recipient']['id'] ?? '');
@@ -95,17 +138,37 @@ class ProcessMetaWebhookJob implements ShouldQueue
 
         $eventTime = $this->resolveEventTime($event['timestamp'] ?? null);
 
-        DB::transaction(function () use ($contactPsid, $messagePayload, $externalId, $eventTime): void {
+        // El perfil se pide FUERA de la transacción: es una llamada HTTP a Meta
+        // y dejarla dentro mantendría abierta la transacción durante toda la
+        // latencia de red.
+        $perfil = $this->resolverPerfil($contactPsid, $accounts);
+
+        DB::transaction(function () use ($contactPsid, $messagePayload, $externalId, $eventTime, $perfil): void {
             $contact = Contact::query()->firstOrCreate(
                 ['channel' => Contact::CHANNEL_FACEBOOK, 'channel_id' => $contactPsid],
                 [
-                    'display_name' => 'Facebook User',
+                    'display_name' => $perfil['name'] ?? self::NOMBRE_DESCONOCIDO,
+                    'profile_picture_url' => $perfil['profile_pic'] ?? null,
                     'first_seen_at' => now(),
                     'last_seen_at' => now(),
                 ],
             );
 
             $contact->forceFill(['last_seen_at' => now()])->save();
+
+            // Un contacto que ya existía con el nombre de relleno se corrige en
+            // cuanto la API responde: los que se guardaron antes de tener
+            // Advanced Access quedarían con "Facebook User" para siempre.
+            if (
+                ! $contact->wasRecentlyCreated
+                && isset($perfil['name'])
+                && $contact->display_name === self::NOMBRE_DESCONOCIDO
+            ) {
+                $contact->forceFill([
+                    'display_name' => $perfil['name'],
+                    'profile_picture_url' => $perfil['profile_pic'] ?? $contact->profile_picture_url,
+                ])->save();
+            }
 
             $conversation = $contact->activeConversation()->first();
             if ($conversation === null) {
