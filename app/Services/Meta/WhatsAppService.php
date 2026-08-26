@@ -30,18 +30,81 @@ class WhatsAppService
     {
         foreach ($payload['entry'] ?? [] as $entry) {
             foreach ($entry['changes'] ?? [] as $change) {
-                if (($change['field'] ?? '') !== 'messages') {
+                $field = $change['field'] ?? '';
+                $value = $change['value'] ?? [];
+
+                match ($field) {
+                    'messages'           => $this->procesarMensajes($value),
+                    'smb_message_echoes' => $this->procesarEcos($value),
+                    'history'            => $this->procesarHistorial($value),
+                    default              => null,
+                };
+            }
+        }
+    }
+
+    /**
+     * Eventos del campo `messages`: lo que escriben los clientes y los
+     * acuses de recibo de lo que mandamos nosotros.
+     */
+    private function procesarMensajes(array $value): void
+    {
+        foreach ($value['messages'] ?? [] as $message) {
+            $this->handleMessageEvent($message, $value['contacts'] ?? []);
+        }
+
+        foreach ($value['statuses'] ?? [] as $status) {
+            $this->handleStatusUpdate($status);
+        }
+    }
+
+    /**
+     * Eventos del campo `smb_message_echoes` (coexistencia): mensajes que el
+     * negocio mandó DESDE LA APP DEL TELÉFONO, no desde el CRM.
+     *
+     * Sin esto la bandeja muestra lo que preguntan los clientes pero no lo que
+     * el negocio ya les respondió, y un agente del CRM vuelve a contestar algo
+     * que estaba atendido.
+     *
+     * OJO: acá el `from` es el número del negocio y el `to` es el cliente —
+     * al revés que en un mensaje entrante. El contacto se resuelve por `to`.
+     */
+    private function procesarEcos(array $value): void
+    {
+        foreach ($value['message_echoes'] ?? [] as $eco) {
+            $this->handleEchoEvent($eco);
+        }
+    }
+
+    /**
+     * Eventos del campo `history` (coexistencia): hasta 6 meses de chats
+     * previos que Meta sincroniza al vincular el número, en lotes.
+     *
+     * Se guardan los mensajes para que la conversación se vea completa, pero
+     * NO se crean tickets ni se dispara el Flow de bienvenida: son chats que
+     * el negocio ya atendió por teléfono. Ver handleHistoryMessage().
+     */
+    private function procesarHistorial(array $value): void
+    {
+        foreach ($value['history'] ?? [] as $lote) {
+            $metadata = $lote['metadata'] ?? [];
+
+            Log::info('[WhatsApp] Sincronizando historial de coexistencia', [
+                'phase'       => $metadata['phase'] ?? null,
+                'chunk_order' => $metadata['chunk_order'] ?? null,
+                'progress'    => $metadata['progress'] ?? null,
+                'threads'     => count($lote['threads'] ?? []),
+            ]);
+
+            foreach ($lote['threads'] ?? [] as $thread) {
+                $waId = $thread['id'] ?? null;
+
+                if ($waId === null) {
                     continue;
                 }
 
-                $value = $change['value'] ?? [];
-
-                foreach ($value['messages'] ?? [] as $message) {
-                    $this->handleMessageEvent($message, $value['contacts'] ?? []);
-                }
-
-                foreach ($value['statuses'] ?? [] as $status) {
-                    $this->handleStatusUpdate($status);
+                foreach ($thread['messages'] ?? [] as $mensaje) {
+                    $this->handleHistoryMessage($mensaje, $waId);
                 }
             }
         }
@@ -97,6 +160,149 @@ class WhatsAppService
         if ($esContactoNuevo) {
             SendWhatsAppFlowJob::dispatch($conversation->id, $senderId);
         }
+    }
+
+    /**
+     * Un mensaje que el negocio mandó desde la app del teléfono (coexistencia).
+     *
+     * Se guarda como `outbound` con `sender_user_id` en null: salió del negocio
+     * pero ningún usuario del CRM lo escribió, así que atribuirlo a alguien
+     * sería mentira. Ese null es la marca de "vino del teléfono".
+     *
+     * No crea ticket ni dispara Flow: el negocio ya está en la conversación.
+     */
+    private function handleEchoEvent(array $eco): void
+    {
+        // El destinatario es el cliente. `recipient_id` es lo que manda el
+        // payload de eco; `to` queda como respaldo por si cambia el nombre.
+        $clienteId = $eco['recipient_id'] ?? $eco['to'] ?? null;
+        $messageId = $eco['id'] ?? null;
+
+        if (! $clienteId || ! $messageId) {
+            Log::warning('[WhatsApp] Eco sin destinatario o id', $eco);
+
+            return;
+        }
+
+        if (Message::where('external_id', $messageId)->exists()) {
+            return;
+        }
+
+        $contact = $this->contactService->findOrCreate('whatsapp', $clienteId, [
+            'phone' => $clienteId,
+        ]);
+
+        $conversation = $this->conversationService->getOrOpenActive($contact);
+
+        $this->storeEchoMessage($conversation, $eco, $messageId);
+
+        $this->conversationService->updateLastMessageAt($conversation);
+        $this->conversationService->refreshWindowStatus($conversation);
+    }
+
+    /**
+     * Un mensaje del historial de 6 meses que Meta sincroniza al vincular.
+     *
+     * A diferencia de handleMessageEvent(), esto NO crea tickets ni dispara el
+     * Flow de bienvenida: son conversaciones que el negocio ya atendió por
+     * teléfono. Crear tickets aquí llenaría el Kanban de trabajo ya resuelto, y
+     * el Flow le llegaría a clientes viejos como si fueran leads nuevos.
+     *
+     * El `from` decide la dirección: si es el número del negocio el mensaje es
+     * saliente; si es el del cliente, entrante.
+     */
+    private function handleHistoryMessage(array $mensaje, string $waId): void
+    {
+        $messageId = $mensaje['id'] ?? null;
+
+        if ($messageId === null) {
+            return;
+        }
+
+        if (Message::where('external_id', $messageId)->exists()) {
+            return;
+        }
+
+        // Los media del historial llegan como `media_placeholder`: Meta no
+        // reenvía el archivo, solo avisa que ahí hubo uno. Se guarda el
+        // marcador para que la conversación no quede con huecos.
+        $esEntrante = ($mensaje['from'] ?? null) === $waId;
+
+        $contact = $this->contactService->findOrCreate('whatsapp', $waId, [
+            'phone' => $waId,
+        ]);
+
+        $conversation = $this->conversationService->getOrOpenActive($contact);
+
+        $type = $this->resolveMessageType($mensaje);
+
+        $mensajeGuardado = new Message([
+            'conversation_id' => $conversation->id,
+            'sender_user_id'  => null,
+            'direction'       => $esEntrante ? 'inbound' : 'outbound',
+            'channel'         => 'whatsapp',
+            'external_id'     => $messageId,
+            'type'            => $type,
+            'body'            => $this->extractBody($mensaje, $type),
+            'media_url'       => $this->extractMediaUrl($mensaje, $type),
+            'meta_payload'    => $mensaje,
+            'status'          => $this->estadoDesdeHistorial($mensaje),
+        ]);
+
+        // El timestamp de Meta viene en segundos. Va asignado aparte porque
+        // `created_at` no está en $fillable: pasarlo por create() lo descarta en
+        // silencio y el historial entero queda fechado hoy, con chats de hace
+        // meses apareciendo arriba de los de ayer.
+        //
+        // Solo created_at: el modelo declara UPDATED_AT = null y la tabla no
+        // tiene esa columna.
+        if (isset($mensaje['timestamp'])) {
+            $mensajeGuardado->created_at = now()->setTimestamp((int) $mensaje['timestamp']);
+        }
+
+        $mensajeGuardado->save();
+    }
+
+    /**
+     * Traduce el `history_context.status` de Meta (en mayúsculas) al enum
+     * interno de mensajes.
+     */
+    private function estadoDesdeHistorial(array $mensaje): string
+    {
+        $estado = $mensaje['history_context']['status'] ?? null;
+
+        return match ($estado) {
+            'READ'      => 'read',
+            'DELIVERED' => 'delivered',
+            'PLAYED'    => 'read',
+            'SENT'      => 'sent',
+            'ERROR'     => 'failed',
+            default     => 'delivered',
+        };
+    }
+
+    /**
+     * Persiste un eco (mensaje mandado desde el teléfono del negocio).
+     */
+    private function storeEchoMessage(Conversation $conversation, array $eco, string $externalId): Message
+    {
+        $type = $this->resolveMessageType($eco);
+
+        return Message::create([
+            'conversation_id' => $conversation->id,
+            'sender_user_id'  => null,
+            'direction'       => 'outbound',
+            'channel'         => 'whatsapp',
+            'external_id'     => $externalId,
+            'type'            => $type,
+            'body'            => $this->extractBody($eco, $type),
+            'media_url'       => $this->extractMediaUrl($eco, $type),
+            'meta_payload'    => $eco,
+            'status'          => 'sent',
+            'sent_at'         => isset($eco['timestamp'])
+                ? now()->setTimestamp((int) $eco['timestamp'])
+                : now(),
+        ]);
     }
 
     /**
@@ -320,6 +526,13 @@ class WhatsAppService
 
     private function extractBody(array $messageData, string $type): ?string
     {
+        // El historial de coexistencia no reenvía los archivos: manda
+        // `media_placeholder` para avisar que ahí hubo uno. Sin este texto el
+        // mensaje se vería vacío en la bandeja, como si se hubiera perdido.
+        if (($messageData['type'] ?? null) === 'media_placeholder') {
+            return '[archivo adjunto no sincronizado]';
+        }
+
         if ($type === 'text') {
             return $messageData['text']['body'] ?? null;
         }
