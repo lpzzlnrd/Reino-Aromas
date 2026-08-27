@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { onMounted, watch } from 'vue'
+    import { onMounted, ref, watch } from 'vue'
     import { useCaseStatus } from '@/hooks/caseStatus.ts'
     import { useInbox, type ChatSummary } from '@/hooks/useInbox'
     import { useRealtime } from '@/hooks/useRealtime'
@@ -32,7 +32,50 @@
         clearFilters,
         onMessageCreated,
         onTicketUpdated,
+        sonido,
+        avisoEscritorio,
     } = useInbox()
+
+    /*
+     * Estado del interruptor de avisos.
+     *
+     * Se copia a un ref en vez de llamar a sonido.activado() en la plantilla:
+     * ese método lee localStorage, que no es reactivo, así que Vue no
+     * re-renderizaría al cambiarlo y el icono se quedaría al revés.
+     */
+    const sonidoActivo = ref(sonido.activado())
+    const escritorioActivo = ref(avisoEscritorio.activado())
+
+    /** Por qué no se pudieron activar los avisos del sistema. */
+    const errorAvisos = ref<string | null>(null)
+
+    const alternarSonido = (): void => {
+        sonidoActivo.value = sonido.alternar()
+    }
+
+    /**
+     * Pide permiso al navegador la primera vez; después solo alterna.
+     *
+     * Un 'denied' no se puede revertir por código, así que se avisa en vez de
+     * dejar el interruptor puesto sin que llegue ningún aviso.
+     */
+    const alternarEscritorio = async (): Promise<void> => {
+        if (escritorioActivo.value) {
+            avisoEscritorio.desactivar()
+            escritorioActivo.value = false
+
+            return
+        }
+
+        if (avisoEscritorio.permiso() === 'denied') {
+            errorAvisos.value = 'El navegador tiene los avisos bloqueados para este sitio. Habilítalos en la configuración del candado de la barra de direcciones.'
+
+            return
+        }
+
+        errorAvisos.value = null
+        escritorioActivo.value = await avisoEscritorio.solicitar()
+    }
 
     // La suscripción vive en el componente y no en el hook: useInbox es un
     // singleton que nunca se desmonta, así que dejarla ahí mantendría el canal
@@ -181,6 +224,55 @@
                 </label>
 
                 <div class="flex items-center gap-2">
+                    <!-- Avisos de mensaje entrante.
+
+                         Van aquí, al lado de la insignia "En vivo", porque los
+                         dos responden a la misma pregunta del agente: ¿me voy a
+                         enterar cuando escriba un cliente? El sonido depende del
+                         socket, así que separarlos escondería esa relación. -->
+                    <button
+                        @click="alternarSonido()"
+                        class="cursor-pointer transition-colors"
+                        :class="sonidoActivo ? 'text-primary/70 hover:text-primary' : 'text-primary/25 hover:text-primary/50'"
+                        :title="sonidoActivo ? 'Sonido activado: clic para silenciar' : 'Silenciado: clic para activar el sonido'"
+                        :aria-pressed="sonidoActivo"
+                        aria-label="Sonido de mensajes nuevos"
+                        type="button"
+                    >
+                        <!-- Altavoz. El icono cambia de forma, no solo de color:
+                             el estado tiene que leerse sin depender de distinguir
+                             dos tonos del mismo color. -->
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 4.5 5.5 7.5H3v5h2.5L9 15.5z" />
+                            <template v-if="sonidoActivo">
+                                <path d="M12.2 7.5a3.5 3.5 0 0 1 0 5" />
+                                <path d="M14.4 5.4a6.5 6.5 0 0 1 0 9.2" />
+                            </template>
+                            <template v-else>
+                                <path d="M13 8l4 4" />
+                                <path d="M17 8l-4 4" />
+                            </template>
+                        </svg>
+                    </button>
+
+                    <button
+                        v-if="avisoEscritorio.soportado()"
+                        @click="alternarEscritorio()"
+                        class="cursor-pointer transition-colors"
+                        :class="escritorioActivo ? 'text-primary/70 hover:text-primary' : 'text-primary/25 hover:text-primary/50'"
+                        :title="escritorioActivo ? 'Avisos del sistema activados: clic para desactivar' : 'Clic para recibir avisos del sistema con la pestaña en segundo plano'"
+                        :aria-pressed="escritorioActivo"
+                        aria-label="Avisos del sistema para mensajes nuevos"
+                        type="button"
+                    >
+                        <!-- Campana. Tachada cuando está desactivada. -->
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5.5 8.5a4.5 4.5 0 0 1 9 0c0 3 1 4.5 1 4.5H4.5s1-1.5 1-4.5z" />
+                            <path d="M8.2 15.5a1.9 1.9 0 0 0 3.6 0" />
+                            <path v-if="!escritorioActivo" d="M3.5 3.5l13 13" />
+                        </svg>
+                    </button>
+
                     <!-- Sin esto el agente no sabe si la lista está al día o si
                          tiene que recargar a mano.
 
@@ -216,6 +308,13 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Un permiso bloqueado no se puede revertir por código: el agente
+                 pulsaría el interruptor sin que pasara nada. Hay que decirle
+                 dónde se arregla. -->
+            <p v-if="errorAvisos" class="text-[10px] leading-snug text-red-600" role="alert">
+                {{ errorAvisos }}
+            </p>
         </div>
 
         <!-- Lista de chats -->

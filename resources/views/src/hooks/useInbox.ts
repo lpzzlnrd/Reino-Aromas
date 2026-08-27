@@ -1,5 +1,7 @@
 import { computed, ref } from 'vue'
 import api from '@/lib/axios'
+import { useDesktopNotification } from '@/composables/useDesktopNotification'
+import { useNotificationSound } from '@/composables/useNotificationSound'
 import {
     CaseStatus,
     STATUS_POR_ETIQUETA,
@@ -166,6 +168,17 @@ const procesados = new Set<number>()
 
 /** Cuántos ids se recuerdan antes de podar el Set. */
 const LIMITE_PROCESADOS = 200
+
+/*
+ * Avisos de mensaje entrante.
+ *
+ * Van a nivel de módulo, como el resto del estado de este singleton: el
+ * antirrebote del sonido y el mapa de notificaciones vivas tienen que ser
+ * compartidos. Si cada componente creara su propia instancia, la bandeja y el
+ * chat abierto sonarían cada uno por su lado.
+ */
+const sonido = useNotificationSound()
+const avisoEscritorio = useDesktopNotification()
 
 const filters = ref<InboxFilters>({
     search: '',
@@ -562,6 +575,35 @@ export function useInbox() {
             }
         }
 
+        /*
+         * Avisar SOLO de los entrantes.
+         *
+         * Un 'outbound' por el socket es un mensaje que envió otro agente (o
+         * este mismo desde otra pestaña): avisarlo haría que el CRM suene cada
+         * vez que alguien del equipo responde, que es la mitad del tráfico.
+         *
+         * Va después de la dedup para que el eco del segundo canal no suene dos
+         * veces, y antes de tocar el estado para que el aviso no dependa de que
+         * el chat esté abierto — el caso que importa es justo el contrario.
+         */
+        if (message.direction === 'inbound') {
+            sonido.reproducir()
+
+            // El nombre sale de la fila de la bandeja; el payload del mensaje no
+            // lo trae. Si la conversación es nueva y no está en la lista, se
+            // avisa sin nombre en vez de callarse.
+            const nombre =
+                chats.value.find((c) => c.id === conversationId)?.contact_name ??
+                'Mensaje nuevo'
+
+            avisoEscritorio.mostrar(
+                conversationId,
+                nombre,
+                message.body ?? 'Envió un archivo',
+                () => { void openChat(conversationId) },
+            )
+        }
+
         // Al chat abierto, si es el suyo.
         if (detail.value?.id === conversationId) {
             // El que envía ya insertó su mensaje al recibir el 202, así que
@@ -682,5 +724,14 @@ export function useInbox() {
         onMessageCreated,
         onMessageStatus,
         onTicketUpdated,
+
+        /*
+         * Controles de los avisos, para que la cabecera pinte el interruptor.
+         * Se exponen desde aquí y no importando los composables en el
+         * componente para que el interruptor gobierne la MISMA instancia que
+         * usa onMessageCreated.
+         */
+        sonido,
+        avisoEscritorio,
     }
 }

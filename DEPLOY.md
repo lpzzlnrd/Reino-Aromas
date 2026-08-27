@@ -181,7 +181,125 @@ Scheduler — `sudo crontab -u www-data -e`:
 * * * * * cd /var/www/reinoaromas && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-### 7. Permisos para el deploy automático
+### 7. Reverb (WebSockets / tiempo real)
+
+Sin esto la bandeja no se actualiza sola, no suena el aviso de mensaje nuevo, y
+cada broadcast falla con **`Pusher error: 404`** en `storage/logs/laravel.log`.
+Los mensajes SÍ se guardan en la base: lo único que se pierde es el aviso en
+vivo. Ese 404 es Laravel respondiendo a Laravel — nginx manda `/apps/...` a
+`index.php`, que no tiene esa ruta.
+
+Todo lo de esta sección lo hace el script:
+
+```bash
+sudo bash /var/www/reinoaromas/scripts/setup-reverb.sh
+```
+
+Es idempotente y hace copia de `.env` y del site de nginx antes de tocarlos. Si
+`nginx -t` falla, revierte y no recarga nada.
+
+#### Los dos pares de variables NO son lo mismo
+
+El error más fácil de cometer. Son cuatro variables que parecen redundantes:
+
+| Variable             | Quién la usa    | Valor en el VPS    |
+|----------------------|-----------------|--------------------|
+| `REVERB_SERVER_HOST` | El **servidor** | `127.0.0.1`        |
+| `REVERB_SERVER_PORT` | El **servidor** | `6001`             |
+| `REVERB_HOST`        | El **navegador**| `reinoaromas.tech` |
+| `REVERB_PORT`        | El **navegador**| `443`              |
+
+Las `SERVER_*` dicen dónde escucha el proceso de PHP; las otras dos dicen a
+dónde se conecta el JavaScript, y van al bundle vía `VITE_REVERB_*`. Entre las
+dos está nginx.
+
+`REVERB_SERVER_HOST` **tiene que ser `127.0.0.1`**, no `0.0.0.0`: con `0.0.0.0`
+el puerto queda escuchando en la interfaz pública **sin TLS**, y lo único que lo
+tapa es el firewall.
+
+**El puerto es 6001 y no el 8080 por defecto de Reverb**: el 8080 lo ocupa
+phpMyAdmin en `127.0.0.1:8080`. Comprobar siempre antes de cambiarlo:
+
+```bash
+ss -tlnp | grep 6001
+```
+
+#### El proxy de nginx no es opcional
+
+Abrir el puerto con `ufw allow 6001` no funciona: el navegador bloquea un
+`ws://` iniciado desde una página `https://` (mixed content), y en ese puerto no
+hay certificado. La única vía es que nginx reciba en 443, con el certificado que
+certbot ya instaló, y pase la conexión al puerto interno. **Así no hay que
+tocar el firewall en absoluto.**
+
+El bloque va **antes** de `location /` y **dentro** del `server` de 443:
+
+```nginx
+location ~ ^/(app|apps)/ {
+    proxy_pass http://127.0.0.1:6001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 3600s;
+    proxy_buffering off;
+}
+```
+
+Detrás de `location /` no serviría: esa ruta acaba en `try_files → index.php` y
+gana la primera coincidencia. El patrón cubre `/app/` (el handshake del
+WebSocket) y `/apps/` (la API HTTP por donde PHP publica los eventos).
+
+`proxy_read_timeout 3600s` tampoco es adorno: un WebSocket está callado entre
+mensajes y el ping de Pusher va cada ~120 s, así que con el timeout por defecto
+de 60 s nginx cortaría toda conversación tranquila y el cliente reconectaría en
+bucle.
+
+#### Comprobar que funciona
+
+```bash
+systemctl status reino-reverb
+ss -tlnp | grep 6001
+
+# La prueba que importa. Debe dar 401 (o 400), NUNCA 404.
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'https://reinoaromas.tech/app/clave-falsa?protocol=7&client=js&version=8.4.0'
+```
+
+- **401 / 400** → el proxy llega a Reverb, que rechaza la clave falsa. Correcto.
+- **404** → nginx sigue mandando `/app/` a Laravel: el bloque del proxy está mal
+  puesto o quedó después de `location /`.
+- **000** → no responde desde fuera. Mirar `ufw status` (ver la trampa del
+  firewall en las notas) y el DNS.
+
+Después: abrir la bandeja y mandar un mensaje real al WhatsApp del negocio.
+Tiene que aparecer sin recargar, con la insignia **"En vivo"** en verde y el
+sonido de aviso.
+
+Si la insignia sigue gris con el `curl` dando 401, el problema no es Reverb:
+mirar la consola del navegador. Un 401 en `/broadcasting/auth` es la sesión o el
+canal privado, no el WebSocket.
+
+#### Después de cada deploy
+
+`reverb:start` es un proceso de larga vida y se queda con el código y la config
+cacheada de antes. **No tiene una señal de reinicio propia** como
+`queue:restart`, así que hay que reiniciar la unidad — el workflow de deploy ya
+lo hace, y se salta el paso si la unidad no existe.
+
+Lo mismo vale al cambiar credenciales: Reverb las lee de la **config cacheada**,
+no del `.env`. Sin `config:cache` arranca con los valores viejos y el síntoma no
+cambia en nada.
+
+```bash
+sudo -u www-data HOME=/tmp php8.4 artisan config:cache
+sudo systemctl restart reino-reverb reino-queue
+```
+
+El worker de colas entra ahí porque es **él** quien publica los broadcasts: con
+la config vieja en memoria seguiría apuntando al puerto anterior.
+
+### 8. Permisos para el deploy automático
 
 El workflow corre `chown`, `chmod` y `systemctl reload`. Si `VPS_USER` es
 `root`, ya funciona. Si es un usuario de deploy, dale sudo sin contraseña
@@ -222,7 +340,14 @@ sudo journalctl -u reino-queue -f      # logs del worker
 sudo systemctl restart reino-queue     # reiniciar worker
 php artisan queue:failed               # jobs fallidos
 php artisan down / up                  # mantenimiento manual
+
+sudo journalctl -u reino-reverb -f     # logs del WebSocket
+sudo systemctl restart reino-reverb    # reiniciar WebSocket
 ```
+
+**`Pusher error: 404` en el log de la app** = Reverb caído o el proxy mal
+puesto. Los mensajes se siguen guardando; lo que no llega es el aviso en vivo.
+Ver la sección 7.
 
 ## Notas
 
