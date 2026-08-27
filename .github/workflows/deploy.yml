@@ -123,6 +123,22 @@ jobs:
             # memoria hasta que reciben esta señal.
             php artisan queue:restart
 
+            echo "→ Reiniciando Reverb (WebSockets)..."
+            # reverb:start es un proceso de larga vida: como el worker de colas,
+            # se queda con el código y la config cacheada de antes del deploy.
+            # A diferencia de queue:restart, Reverb no tiene señal de reinicio
+            # propia, así que hay que reiniciar la unidad.
+            #
+            # El `if` es a propósito: en un VPS donde todavía no se corrió
+            # scripts/setup-reverb.sh la unidad no existe, y un deploy no puede
+            # fallar por eso — el CRM funciona sin tiempo real.
+            if $SUDO systemctl list-unit-files reino-reverb.service | grep -q reino-reverb; then
+              $SUDO systemctl restart reino-reverb
+              echo "  reino-reverb reiniciado."
+            else
+              echo "  reino-reverb no instalado, se omite (ver scripts/setup-reverb.sh)."
+            fi
+
             echo "→ Ajustando permisos..."
             $SUDO chown -R www-data:www-data "${{ secrets.VPS_APP_DIR }}"
             $SUDO chmod -R 775 "${{ secrets.VPS_APP_DIR }}/storage" "${{ secrets.VPS_APP_DIR }}/bootstrap/cache"

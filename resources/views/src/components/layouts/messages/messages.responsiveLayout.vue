@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { onMounted, watch } from 'vue'
+    import { onMounted, ref, watch } from 'vue'
     import { useCaseStatus } from '@/hooks/caseStatus.ts'
     import { useInbox, type ChatSummary } from '@/hooks/useInbox'
     import { useRealtime } from '@/hooks/useRealtime'
@@ -32,12 +32,57 @@
         clearFilters,
         onMessageCreated,
         onTicketUpdated,
+        sonido,
+        avisoEscritorio,
     } = useInbox()
+
+    /*
+     * Estado del interruptor de avisos.
+     *
+     * Se copia a un ref en vez de llamar a sonido.activado() en la plantilla:
+     * ese método lee localStorage, que no es reactivo, así que Vue no
+     * re-renderizaría al cambiarlo y el icono se quedaría al revés.
+     */
+    const sonidoActivo = ref(sonido.activado())
+    const escritorioActivo = ref(avisoEscritorio.activado())
+
+    /** Por qué no se pudieron activar los avisos del sistema. */
+    const errorAvisos = ref<string | null>(null)
+
+    const alternarSonido = (): void => {
+        sonidoActivo.value = sonido.alternar()
+    }
+
+    /**
+     * Pide permiso al navegador la primera vez; después solo alterna.
+     *
+     * Un 'denied' no se puede revertir por código, así que se avisa en vez de
+     * dejar el interruptor puesto sin que llegue ningún aviso.
+     */
+    const alternarEscritorio = async (): Promise<void> => {
+        if (escritorioActivo.value) {
+            avisoEscritorio.desactivar()
+            escritorioActivo.value = false
+
+            return
+        }
+
+        if (avisoEscritorio.permiso() === 'denied') {
+            errorAvisos.value = 'El navegador tiene los avisos bloqueados para este sitio. Habilítalos en la configuración del candado de la barra de direcciones.'
+
+            return
+        }
+
+        errorAvisos.value = null
+        escritorioActivo.value = await avisoEscritorio.solicitar()
+    }
 
     // La suscripción vive en el componente y no en el hook: useInbox es un
     // singleton que nunca se desmonta, así que dejarla ahí mantendría el canal
     // abierto al salir de la bandeja.
-    const { disponible: enVivo, escuchar } = useRealtime()
+    // `conectado` y no `disponible`: el segundo solo dice que el build trae
+    // credenciales de Reverb, no que el socket esté vivo.
+    const { conectado: enVivo, escuchar, alVolverLaConexion } = useRealtime()
 
     let searchTimer: number | undefined
 
@@ -106,6 +151,14 @@
         escuchar('tickets', {
             'ticket.updated': onTicketUpdated,
         })
+
+        // Al volver de un corte hay que recargar: los eventos que se emitieron
+        // mientras el socket estaba caído no se reencolan, así que la lista
+        // quedaría con datos viejos sin que nada lo delate.
+        alVolverLaConexion(() => {
+            loadChats()
+            loadCounts()
+        })
     })
 </script>
 
@@ -115,17 +168,32 @@
          de quedar lado a lado. -->
     <div class="flex h-full min-h-screen w-full">
 
-    <!-- Panel lateral de chats -->
-    <div class="hidden md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60">
+    <!-- Panel lateral de chats.
+
+         En movil la lista OCUPA la pantalla mientras no hay chat abierto y se
+         esconde al abrir uno; en escritorio esta siempre al lado. Antes era
+         `hidden md:flex` a secas, asi que en el telefono no habia lista y la
+         bandeja quedaba en blanco: no habia forma de elegir una conversacion. -->
+    <div
+        :class="[
+            'md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60',
+            selectedId === null ? 'flex w-full' : 'hidden',
+        ]"
+    >
 
         <!-- Buscador y filtros -->
         <div class="p-3 border-b border-primary/8 flex flex-col gap-2">
             <label class="input-group group cursor-text">
                 <Search class="text-primary/40 group-focus-within:text-primary/70 shrink-0 transition-colors" />
+                <!-- id propio: header.vue ya usa "search-bar" y los dos se
+                     pintan a la vez en /app/messages. Un id duplicado rompe la
+                     asociacion de labels y la navegacion por rotulo de los
+                     lectores de pantalla. -->
                 <input
-                    id="search-bar"
+                    id="inbox-search"
                     v-model="filters.search"
-                    class="focus:outline-none bg-transparent text-sm w-full placeholder:text-primary/30"
+                    aria-label="Buscar conversación"
+                    class="focus:outline-none bg-transparent text-sm w-full placeholder:text-primary/40"
                     type="text"
                     placeholder="Buscar conversación..."
                 >
@@ -156,12 +224,68 @@
                 </label>
 
                 <div class="flex items-center gap-2">
+                    <!-- Avisos de mensaje entrante.
+
+                         Van aquí, al lado de la insignia "En vivo", porque los
+                         dos responden a la misma pregunta del agente: ¿me voy a
+                         enterar cuando escriba un cliente? El sonido depende del
+                         socket, así que separarlos escondería esa relación. -->
+                    <button
+                        @click="alternarSonido()"
+                        class="cursor-pointer transition-colors"
+                        :class="sonidoActivo ? 'text-primary/70 hover:text-primary' : 'text-primary/25 hover:text-primary/50'"
+                        :title="sonidoActivo ? 'Sonido activado: clic para silenciar' : 'Silenciado: clic para activar el sonido'"
+                        :aria-pressed="sonidoActivo"
+                        aria-label="Sonido de mensajes nuevos"
+                        type="button"
+                    >
+                        <!-- Altavoz. El icono cambia de forma, no solo de color:
+                             el estado tiene que leerse sin depender de distinguir
+                             dos tonos del mismo color. -->
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 4.5 5.5 7.5H3v5h2.5L9 15.5z" />
+                            <template v-if="sonidoActivo">
+                                <path d="M12.2 7.5a3.5 3.5 0 0 1 0 5" />
+                                <path d="M14.4 5.4a6.5 6.5 0 0 1 0 9.2" />
+                            </template>
+                            <template v-else>
+                                <path d="M13 8l4 4" />
+                                <path d="M17 8l-4 4" />
+                            </template>
+                        </svg>
+                    </button>
+
+                    <button
+                        v-if="avisoEscritorio.soportado()"
+                        @click="alternarEscritorio()"
+                        class="cursor-pointer transition-colors"
+                        :class="escritorioActivo ? 'text-primary/70 hover:text-primary' : 'text-primary/25 hover:text-primary/50'"
+                        :title="escritorioActivo ? 'Avisos del sistema activados: clic para desactivar' : 'Clic para recibir avisos del sistema con la pestaña en segundo plano'"
+                        :aria-pressed="escritorioActivo"
+                        aria-label="Avisos del sistema para mensajes nuevos"
+                        type="button"
+                    >
+                        <!-- Campana. Tachada cuando está desactivada. -->
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5.5 8.5a4.5 4.5 0 0 1 9 0c0 3 1 4.5 1 4.5H4.5s1-1.5 1-4.5z" />
+                            <path d="M8.2 15.5a1.9 1.9 0 0 0 3.6 0" />
+                            <path v-if="!escritorioActivo" d="M3.5 3.5l13 13" />
+                        </svg>
+                    </button>
+
                     <!-- Sin esto el agente no sabe si la lista está al día o si
-                         tiene que recargar a mano. -->
+                         tiene que recargar a mano.
+
+                         Se mira `enVivo` (el socket de verdad) y no si Reverb
+                         está configurado: con el servidor caído la insignia se
+                         quedaba en verde y el botón de Actualizar no aparecía,
+                         así que el agente miraba una bandeja congelada
+                         convencido de que estaba al día. -->
                     <span
                         v-if="enVivo"
                         class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-600"
                         title="Las conversaciones se actualizan solas"
+                        role="status"
                     >
                         <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                         En vivo
@@ -184,6 +308,13 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Un permiso bloqueado no se puede revertir por código: el agente
+                 pulsaría el interruptor sin que pasara nada. Hay que decirle
+                 dónde se arregla. -->
+            <p v-if="errorAvisos" class="text-[10px] leading-snug text-red-600" role="alert">
+                {{ errorAvisos }}
+            </p>
         </div>
 
         <!-- Lista de chats -->
@@ -257,7 +388,8 @@
         </div>
     </div>
 
-    <router-view class="flex-1 min-w-0" />
+    <!-- En movil el chat abierto ocupa todo; sin chat, lo tapa la lista. -->
+    <router-view :class="['flex-1 min-w-0', selectedId === null ? 'hidden md:block' : 'block']" />
 
     </div>
 </template>

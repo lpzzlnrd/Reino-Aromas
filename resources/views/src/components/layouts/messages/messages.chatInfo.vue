@@ -1,6 +1,8 @@
 <script setup lang="ts">
-    import { ref, computed, watch } from 'vue'
+    import { ref, computed, watch, onMounted } from 'vue'
     import { useInbox, type TicketPriority, type TicketStatus } from '@/hooks/useInbox'
+    import { useAssignableUsers } from '@/hooks/useAssignableUsers'
+    import { useAuth } from '@/composables/useAuth'
     import { CaseStatus } from '@/hooks/caseStatus'
 
     import Mail from '../../icons/icon.mail.vue'
@@ -48,9 +50,45 @@
         () => {
             notes.value = ticket.value?.notes ?? ''
             notesSaved.value = false
+            notasDeOtroAgente.value = null
         },
         { immediate: true },
     )
+
+    /**
+     * Notas que cambió otro agente mientras este escribía.
+     *
+     * El watch de arriba solo mira el id de la conversación, así que un
+     * `ticket.updated` de otro agente reemplazaba `ticket.notes` en el store sin
+     * disparar nada aquí: al guardar, este agente pisaba silenciosamente lo que
+     * escribió el otro. Ahora se detecta y se avisa antes de sobrescribir.
+     */
+    const notasDeOtroAgente = ref<string | null>(null)
+
+    watch(
+        () => ticket.value?.notes,
+        (remotas, previas) => {
+            // Solo interesa si el agente tiene cambios sin guardar: sin eso, la
+            // versión del servidor entra sin ruido.
+            if (remotas === previas) return
+
+            if (notes.value !== (previas ?? '') && notes.value !== (remotas ?? '')) {
+                notasDeOtroAgente.value = remotas ?? ''
+
+                return
+            }
+
+            notes.value = remotas ?? ''
+        },
+    )
+
+    /** Descarta lo escrito y se queda con la versión del otro agente. */
+    const usarNotasDeOtroAgente = (): void => {
+        if (notasDeOtroAgente.value === null) return
+
+        notes.value = notasDeOtroAgente.value
+        notasDeOtroAgente.value = null
+    }
 
     const notesChanged = computed(() => notes.value !== (ticket.value?.notes ?? ''))
 
@@ -60,15 +98,83 @@
         savingNotes.value = false
     }
 
-    const changeStatus = (event: Event) => {
-        const valor = (event.target as HTMLSelectElement).value as TicketStatus
-        void updateTicket({ status: valor })
+    /**
+     * Devuelve el <select> a lo que dice el store si el PATCH falló.
+     *
+     * El DOM ya muestra lo que eligió el usuario, y como el valor vinculado no
+     * cambió, Vue no vuelve a pintar: el desplegable se quedaba mintiendo
+     * indefinidamente. El agente creía haber marcado "Reservado" y el ticket
+     * seguía en "Nuevo", sin ningún aviso.
+     */
+    const revertirSelect = (event: Event, valorReal: string): void => {
+        const select = event.target as HTMLSelectElement
+
+        // nextTick no alcanza: hay que forzarlo sobre el elemento, porque el
+        // binding reactivo no cambió y Vue no tiene nada que re-renderizar.
+        select.value = valorReal
     }
 
-    const changePriority = (event: Event) => {
-        const valor = (event.target as HTMLSelectElement).value as TicketPriority
-        void updateTicket({ priority: valor })
+    const changeStatus = async (event: Event) => {
+        const previo = ticket.value?.status ?? ''
+        const valor = (event.target as HTMLSelectElement).value as TicketStatus
+
+        const ok = await updateTicket({ status: valor })
+
+        if (!ok) revertirSelect(event, previo)
     }
+
+    const changePriority = async (event: Event) => {
+        const previo = ticket.value?.priority ?? ''
+        const valor = (event.target as HTMLSelectElement).value as TicketPriority
+
+        const ok = await updateTicket({ priority: valor })
+
+        if (!ok) revertirSelect(event, previo)
+    }
+
+    /* ── Asignación de agentes ───────────────────────────────────────────── */
+
+    const { activos: agentes, error: errorAgentes, loadUsers } = useAssignableUsers()
+    const { user: usuarioActual } = useAuth()
+
+    const asignando = ref(false)
+
+    /** El botón "Tomar el caso" solo tiene sentido si no es ya suyo. */
+    const puedeTomarlo = computed(
+        () =>
+            usuarioActual.value !== null
+            && ticket.value?.assigned_user?.id !== usuarioActual.value.id,
+    )
+
+    const asignar = async (usuarioId: number | null, event?: Event): Promise<void> => {
+        const previo = String(ticket.value?.assigned_user?.id ?? '')
+
+        asignando.value = true
+
+        try {
+            const ok = await updateTicket({ assigned_user_id: usuarioId })
+
+            if (!ok && event) revertirSelect(event, previo)
+        } finally {
+            asignando.value = false
+        }
+    }
+
+    const changeAssignee = (event: Event) => {
+        const valor = (event.target as HTMLSelectElement).value
+
+        void asignar(valor === '' ? null : Number(valor), event)
+    }
+
+    const tomarElCaso = () => {
+        if (usuarioActual.value === null) return
+
+        void asignar(usuarioActual.value.id)
+    }
+
+    // La lista de agentes se pide al montar: el selector tiene que estar
+    // poblado antes de que el agente lo abra, no al primer clic.
+    onMounted(() => void loadUsers())
 
     const channelLabel = computed(() => {
         const canal = contact.value?.channel
@@ -185,12 +291,42 @@
                         <span class="text-xs text-primary/60 truncate">{{ ticket.course_interest }}</span>
                     </div>
 
-                    <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-semibold text-primary/50 shrink-0">Asignado</span>
-                        <span class="text-xs text-primary/60 truncate">
-                            {{ ticket.assigned_user?.name ?? 'Sin asignar' }}
-                        </span>
-                    </div>
+                    <!-- Asignación. Antes era un <span> de solo lectura: el
+                         backend aceptaba assigned_user_id desde el principio,
+                         pero no había nada en la app que lo mandara, así que el
+                         filtro "Asignados a mí" y la alerta de casos sin asignar
+                         del dashboard no tenían forma de resolverse. -->
+                    <label class="flex flex-col gap-1">
+                        <span class="text-xs font-semibold text-primary/50">Asignado a</span>
+                        <select
+                            :value="ticket.assigned_user?.id ?? ''"
+                            @change="changeAssignee"
+                            :disabled="asignando"
+                            class="input-group text-xs py-1.5 px-2 w-full cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                        >
+                            <option value="">Sin asignar</option>
+                            <option v-for="u in agentes" :key="u.id" :value="u.id">
+                                {{ u.name }}
+                            </option>
+                        </select>
+                    </label>
+
+                    <!-- Atajo para el caso más común: el agente que está leyendo
+                         la conversación se la queda. Evita buscar su propio
+                         nombre en el desplegable. -->
+                    <button
+                        v-if="puedeTomarlo"
+                        type="button"
+                        @click="tomarElCaso"
+                        :disabled="asignando"
+                        class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border-2 border-secondary/40 text-primary/60 hover:border-primary hover:bg-primary hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                    >
+                        Tomar el caso
+                    </button>
+
+                    <p v-if="errorAgentes" role="alert" class="text-[11px] text-red-600 leading-relaxed">
+                        {{ errorAgentes }}
+                    </p>
                 </template>
             </div>
 
@@ -214,9 +350,29 @@
                 <textarea
                     v-model="notes"
                     :disabled="!ticket"
+                    aria-label="Notas internas del caso"
                     class="w-full h-20 text-xs text-primary p-2.5 bg-white/70 border border-primary/12 rounded-xl resize-none focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25 disabled:opacity-50"
                     :placeholder="ticket ? 'Escribe una nota...' : 'Esta conversación no tiene ticket'"
                 />
+
+                <!-- Otro agente cambió las notas mientras este escribía.
+                     Guardar sin avisar pisaba su trabajo en silencio. -->
+                <div
+                    v-if="notasDeOtroAgente !== null"
+                    role="alert"
+                    class="px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200 flex flex-col gap-1.5"
+                >
+                    <p class="text-[11px] text-amber-800 leading-relaxed">
+                        Otro agente cambió estas notas. Si guardas, se perderá su versión.
+                    </p>
+                    <button
+                        type="button"
+                        @click="usarNotasDeOtroAgente"
+                        class="self-start text-[10px] font-bold uppercase tracking-widest text-amber-800 hover:text-amber-950 cursor-pointer underline"
+                    >
+                        Ver la suya y descartar lo mío
+                    </button>
+                </div>
             </div>
 
             <!-- Etiquetas -->

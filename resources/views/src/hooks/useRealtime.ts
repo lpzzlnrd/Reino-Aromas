@@ -29,6 +29,12 @@ export function useRealtime() {
 
     const disponible = realtimeConfigured()
 
+    /** Para no volver a enganchar los listeners del socket en cada canal. */
+    let estadoEnganchado = false
+
+    /** Loaders que hay que correr cuando el socket vuelve. */
+    const alReconectar = new Set<() => void>()
+
     /**
      * Escucha varios eventos de un canal privado.
      *
@@ -41,6 +47,15 @@ export function useRealtime() {
         const echo = getEcho()
         if (echo === null) return
 
+        // Entrar dos veces al mismo canal registra los handlers DOS veces, y
+        // cada evento se procesa doble. Pasa de verdad: la bandeja y el tablero
+        // escuchan los dos el canal 'tickets', y con ambas vistas montadas un
+        // ticket movido se aplicaba dos veces.
+        //
+        // El Set servía solo para darse de baja; ahora también corta la entrada
+        // repetida, que es lo que este hook decía prevenir.
+        if (suscritos.has(canal)) return
+
         const channel = echo.private(canal)
         suscritos.add(canal)
 
@@ -51,7 +66,60 @@ export function useRealtime() {
         // El '.' del prefijo es obligatorio: sin él Echo asume el namespace de
         // Laravel ('App\\Events\\') y nunca encuentra el evento.
 
-        conectado.value = true
+        escucharEstadoDeConexion(echo)
+    }
+
+    /**
+     * Refleja el estado real del socket en `conectado`.
+     *
+     * Antes se ponía en true al suscribirse, sin mirar el socket: con Reverb
+     * caído la UI diría "en vivo" igual, que es justo cuando el agente necesita
+     * saber que tiene que refrescar a mano.
+     */
+    const escucharEstadoDeConexion = (echo: NonNullable<ReturnType<typeof getEcho>>): void => {
+        if (estadoEnganchado) return
+
+        // pusher-js expone el conector; puede no estar en entornos de prueba.
+        const conector = (echo as unknown as {
+            connector?: { pusher?: { connection?: { bind: (e: string, cb: () => void) => void } } }
+        }).connector
+
+        const conexion = conector?.pusher?.connection
+
+        if (conexion === undefined) {
+            // Sin acceso al socket se asume conectado: es lo que había antes y
+            // es mejor que marcar "sin conexión" por no poder comprobarlo.
+            conectado.value = true
+
+            return
+        }
+
+        conexion.bind('connected', () => {
+            const seHabiaCaido = conectado.value === false
+            conectado.value = true
+
+            // Los eventos emitidos mientras el socket estuvo caído se perdieron
+            // para siempre: Reverb no los reencola. Sin este aviso la vista se
+            // queda con datos viejos y la insignia en verde diciendo que está
+            // al día.
+            if (seHabiaCaido) alReconectar.forEach((fn) => fn())
+        })
+
+        conexion.bind('disconnected', () => { conectado.value = false })
+        conexion.bind('unavailable', () => { conectado.value = false })
+        conexion.bind('failed', () => { conectado.value = false })
+
+        estadoEnganchado = true
+    }
+
+    /**
+     * Registra qué recargar cuando el socket vuelve.
+     *
+     * La vista pasa su propio loader (loadChats, loadBoard…): este hook no sabe
+     * qué datos quedaron rancios.
+     */
+    const alVolverLaConexion = (fn: () => void): void => {
+        alReconectar.add(fn)
     }
 
     /** Deja un canal concreto. Útil al cambiar de chat sin desmontar la vista. */
@@ -83,5 +151,6 @@ export function useRealtime() {
         escuchar,
         dejar,
         dejarTodos,
+        alVolverLaConexion,
     }
 }

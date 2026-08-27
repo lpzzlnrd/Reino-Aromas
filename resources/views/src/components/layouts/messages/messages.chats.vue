@@ -3,6 +3,7 @@
     import { useInbox, type ChatMessage } from '@/hooks/useInbox'
     import { useRealtime } from '@/hooks/useRealtime'
     import { useDashboard } from '@/hooks/useDashboard'
+    import { useModal } from '@/composables/useModal'
     import { CaseStatus } from '@/hooks/caseStatus'
 
     import CheckMark from '../../icons/icon.checkMark.vue'
@@ -29,6 +30,8 @@
         loadingDetail,
         sending,
         detailError,
+        templatesError,
+        closeChat,
         sendError,
         sendMessage,
         retrying,
@@ -53,6 +56,15 @@
     const draft = ref('')
     const showTemplates = ref(false)
     const messagesPane = ref<HTMLElement | null>(null)
+    const panelPlantillas = ref<HTMLElement | null>(null)
+
+    /*
+     * El selector de plantillas se cerraba SOLO con su propio boton o al elegir
+     * una. Como tapa el area de mensajes, el agente que lo abria por curiosidad
+     * tenia que acertar otra vez en el mismo boton para salir. Ahora cierra con
+     * Escape, y el foco entra al panel al abrirlo.
+     */
+    useModal(showTemplates, () => { showTemplates.value = false }, { panel: panelPlantillas })
 
     const inputBtnStyle = 'p-2 cursor-pointer hover:bg-primary/8 text-primary/50 hover:text-primary rounded-xl transition-colors'
     const clientText = 'max-w-sm text-left px-4 py-2.5 bg-white border border-primary/10 rounded-2xl rounded-tl-sm shadow-sm text-sm text-primary leading-relaxed'
@@ -108,46 +120,90 @@
         if (ok) await scrollToBottom()
     }
 
+    /**
+     * Cerrar o reabrir la conversación.
+     *
+     * El guard de reentrada no es cosmético: cerrar y reabrir son rutas
+     * distintas, y el estado local solo se actualiza al recibir el 200. Dos
+     * clics rápidos mandaban dos PATCH y podían dejar el estado local invertido
+     * respecto al del servidor.
+     */
+    const cambiandoEstado = ref(false)
+
     const toggleConversation = async () => {
-        if (!detail.value) return
-        await setConversationStatus(detail.value.id, isClosed.value ? 'reopen' : 'close')
+        if (!detail.value || cambiandoEstado.value) return
+
+        cambiandoEstado.value = true
+
+        try {
+            await setConversationStatus(detail.value.id, isClosed.value ? 'reopen' : 'close')
+        } finally {
+            cambiandoEstado.value = false
+        }
     }
+
+    /*
+     * Los formateadores se crean UNA vez y se reutilizan.
+     *
+     * Antes cada mensaje construía su propio Intl en cada render: crear un
+     * formateador es una de las llamadas más caras del runtime de JS, y con un
+     * hilo de cientos de mensajes se rehacían todos en cada tick del websocket.
+     */
+    const FORMATO_HORA = new Intl.DateTimeFormat('es-VE', {
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+
+    const FORMATO_FECHA = new Intl.DateTimeFormat('es-VE', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+    })
 
     /** Hora del mensaje, que es lo único que hace falta dentro del hilo. */
     const messageTime = (msg: ChatMessage): string =>
-        new Date(msg.sent_at ?? msg.created_at).toLocaleTimeString('es-VE', {
-            hour: '2-digit',
-            minute: '2-digit',
-        })
+        FORMATO_HORA.format(new Date(msg.sent_at ?? msg.created_at))
 
-    /** Separador de día. Se pinta cuando cambia la fecha respecto al anterior. */
-    const dayLabel = (iso: string): string => {
-        const fecha = new Date(iso)
-        const hoy = new Date()
-        const ayer = new Date(hoy)
-        ayer.setDate(hoy.getDate() - 1)
-
-        const mismoDia = (a: Date, b: Date) =>
-            a.getDate() === b.getDate() &&
-            a.getMonth() === b.getMonth() &&
-            a.getFullYear() === b.getFullYear()
-
-        if (mismoDia(fecha, hoy)) return 'Hoy'
-        if (mismoDia(fecha, ayer)) return 'Ayer'
-
-        return fecha.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })
-    }
-
-    const showDaySeparator = (index: number): boolean => {
+    /**
+     * Separadores de día, precalculados en una sola pasada.
+     *
+     * showDaySeparator() y dayLabel() eran funciones llamadas desde el template
+     * por cada mensaje: la primera recorría el array entero en cada llamada
+     * (O(n²)) y las dos construían objetos Date y strings nuevos. Como son
+     * llamadas a función, Vue no las cachea y se reevaluaban íntegras en cada
+     * re-render — y hay re-renders constantes, uno por cada `message.status` que
+     * entra por el socket.
+     *
+     * El Map va por id de mensaje y no por índice: un mensaje insertado al
+     * principio desplazaría todos los índices.
+     */
+    const separadores = computed<Map<number, string>>(() => {
+        const mapa = new Map<number, string>()
         const mensajes = detail.value?.messages ?? []
-        if (index === 0) return true
 
-        const actual = mensajes[index]
-        const previo = mensajes[index - 1]
-        if (!actual || !previo) return false
+        const hoy = new Date().toDateString()
+        const ayerFecha = new Date()
+        ayerFecha.setDate(ayerFecha.getDate() - 1)
+        const ayer = ayerFecha.toDateString()
 
-        return new Date(actual.created_at).toDateString() !== new Date(previo.created_at).toDateString()
-    }
+        let diaPrevio: string | null = null
+
+        for (const msg of mensajes) {
+            const fecha = new Date(msg.created_at)
+            const dia = fecha.toDateString()
+
+            if (dia !== diaPrevio) {
+                mapa.set(
+                    msg.id,
+                    dia === hoy ? 'Hoy' : dia === ayer ? 'Ayer' : FORMATO_FECHA.format(fecha),
+                )
+
+                diaPrevio = dia
+            }
+        }
+
+        return mapa
+    })
 
     /**
      * Al cambiar de chat: bajar el hilo y mover la suscripción.
@@ -177,7 +233,12 @@
             // actualiza acá también.
             'ticket.updated': onTicketUpdated,
         })
-    })
+
+        // El selector de plantillas se cierra al cambiar de chat: openChat vacía
+        // la lista, así que quedaba abierto mostrando "no hay plantillas" para
+        // un chat que sí las tiene, hasta que resolvía la carga.
+        showTemplates.value = false
+    }, { immediate: true })
 
     // Cuando llega un mensaje al chat abierto hay que bajar el hilo, o el
     // agente no ve lo que acaba de entrar.
@@ -204,7 +265,11 @@
 <template>
     <div id="desktop-open-chats" class="h-full relative flex flex-col">
         <!-- Estado vacío: sin chat seleccionado -->
-        <div v-if="!detail && !loadingDetail && isDesktop" class="absolute inset-0 flex flex-col items-center justify-center text-center gap-6 px-8">
+        <!-- Sin el gate de isDesktop: en móvil ninguna rama del v-if/v-else-if
+             se cumplía y la bandeja quedaba completamente en blanco, sin lista,
+             sin mensaje y sin explicación. El texto se adapta porque en móvil la
+             lista está arriba y en escritorio al lado. -->
+        <div v-if="!detail && !loadingDetail" class="absolute inset-0 flex flex-col items-center justify-center text-center gap-6 px-8">
             <div class="w-24 h-24 rounded-full bg-gradient-to-br from-secondary/30 to-accent/50 flex items-center justify-center shadow-inner">
                 <Comments class="text-primary/50 text-4xl"/>
             </div>
@@ -231,6 +296,18 @@
                 <!-- Header del chat -->
                 <header class="px-5 py-3.5 border-b border-primary/8 bg-white/60 backdrop-blur-sm flex items-center justify-between shrink-0">
                     <div class="flex items-center gap-3 min-w-0">
+                        <!-- Volver a la lista. Solo en móvil: ahí el chat tapa
+                             la lista entera, así que sin este botón se entra a
+                             una conversación y no hay forma de salir. -->
+                        <button
+                            type="button"
+                            @click="closeChat"
+                            aria-label="Volver a la lista de conversaciones"
+                            class="md:hidden p-1.5 -ml-1.5 rounded-lg text-primary/60 hover:text-primary hover:bg-primary/8 transition-colors cursor-pointer shrink-0"
+                        >
+                            <span aria-hidden="true" class="text-lg leading-none">‹</span>
+                        </button>
+
                         <div class="w-10 h-10 rounded-full bg-gradient-to-br from-secondary/40 to-accent/60 flex items-center justify-center text-primary shrink-0 overflow-hidden">
                             <img
                                 v-if="detail.contact?.profile_picture_url"
@@ -251,22 +328,57 @@
                     <button
                         type="button"
                         @click="toggleConversation"
-                        class="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-xl border-2 border-secondary/40 text-primary/60 hover:border-primary hover:bg-primary hover:text-white transition-all cursor-pointer whitespace-nowrap shrink-0 ml-3"
+                        :disabled="cambiandoEstado"
+                        class="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-xl border-2 border-secondary/40 text-primary/60 hover:border-primary hover:bg-primary hover:text-white transition-all cursor-pointer whitespace-nowrap shrink-0 ml-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {{ isClosed ? 'Reabrir chat' : 'Cerrar chat' }}
+                        <template v-if="cambiandoEstado">Guardando...</template>
+                        <template v-else>{{ isClosed ? 'Reabrir chat' : 'Cerrar chat' }}</template>
                     </button>
                 </header>
 
+                <!-- Errores de las acciones del chat (cerrar/reabrir, estado,
+                     prioridad, notas).
+
+                     Antes detailError solo se pintaba en el estado vacío, o sea
+                     únicamente cuando NO había chat abierto: con un chat abierto
+                     los tres fallos eran completamente mudos y el agente
+                     clickeaba de nuevo creyendo que no había pasado nada. -->
+                <div
+                    v-if="detailError"
+                    role="alert"
+                    class="px-5 py-2.5 bg-red-50 border-b border-red-100 flex items-start justify-between gap-3 shrink-0"
+                >
+                    <p class="text-xs text-red-700 leading-relaxed">{{ detailError }}</p>
+                    <button
+                        type="button"
+                        @click="detailError = null"
+                        aria-label="Descartar el aviso"
+                        class="text-xs font-bold text-red-700/60 hover:text-red-700 cursor-pointer shrink-0"
+                    >
+                        ✕
+                    </button>
+                </div>
+
                 <!-- Área de mensajes -->
-                <div ref="messagesPane" class="flex-1 overflow-y-auto scroll p-5 flex flex-col gap-3">
+                <!-- role=log + aria-live: los mensajes que entran por el socket
+                     eran invisibles para un lector de pantalla. En una app de
+                     chat eso es un fallo funcional, no un detalle. -->
+                <div
+                    ref="messagesPane"
+                    role="log"
+                    aria-live="polite"
+                    aria-label="Mensajes de la conversación"
+                    class="flex-1 overflow-y-auto scroll p-5 flex flex-col gap-3"
+                >
                     <p v-if="detail.messages.length === 0" class="text-sm text-primary/40 text-center my-auto">
                         Todavía no hay mensajes en esta conversación.
                     </p>
 
-                    <template v-for="(msg, i) in detail.messages" :key="msg.id">
-                        <!-- Separador de día -->
-                        <p v-if="showDaySeparator(i)" class="text-[10px] font-bold uppercase tracking-widest text-primary/30 text-center my-2">
-                            {{ dayLabel(msg.created_at) }}
+                    <template v-for="msg in detail.messages" :key="msg.id">
+                        <!-- Separador de día: sale del computed `separadores`,
+                             que recorre el hilo una sola vez. -->
+                        <p v-if="separadores.has(msg.id)" class="text-[10px] font-bold uppercase tracking-widest text-primary/40 text-center my-2">
+                            {{ separadores.get(msg.id) }}
                         </p>
 
                         <div :class="msg.direction === 'inbound' ? 'flex flex-col items-start' : 'flex flex-col items-end'">
@@ -330,7 +442,7 @@
 
                 <!-- Error de envío -->
                 <div v-if="sendError" class="px-5 py-2 bg-red-50 border-t border-red-100">
-                    <p class="text-[11px] text-red-700">{{ sendError }}</p>
+                    <p role="alert" class="text-[11px] text-red-700">{{ sendError }}</p>
                 </div>
 
                 <!-- Input bar -->
@@ -338,16 +450,30 @@
                     <!-- Selector de plantillas -->
                     <div
                         v-if="showTemplates"
+                        ref="panelPlantillas"
+                        role="menu"
+                        aria-label="Plantillas disponibles"
                         class="absolute bottom-full left-4 right-4 mb-2 max-h-64 overflow-y-auto bg-white border border-primary/12 rounded-2xl shadow-lg z-10"
                     >
-                        <p v-if="templates.length === 0" class="px-4 py-4 text-xs text-primary/40 text-center">
+                        <!-- El fallo de red se distingue del "no hay ninguna":
+                             fuera de la ventana de 24h las plantillas son el
+                             UNICO envio posible, asi que decir que no hay
+                             cuando fallo la carga deja al agente sin saber que
+                             puede reintentar. -->
+                        <p v-if="templatesError" class="px-4 py-4 text-xs text-red-600 text-center leading-relaxed">
+                            {{ templatesError }}
+                        </p>
+                        <p v-else-if="templates.length === 0" class="px-4 py-4 text-xs text-primary/50 text-center">
                             No hay plantillas disponibles para esta conversación.
                         </p>
                         <button
                             v-for="tpl in templates"
                             :key="tpl.id"
                             @click="useTemplate(tpl.id)"
-                            class="w-full text-left px-4 py-3 border-b border-primary/5 last:border-b-0 hover:bg-primary/3 transition-colors cursor-pointer"
+                            :disabled="sending"
+                            role="menuitem"
+                            type="button"
+                            class="w-full text-left px-4 py-3 border-b border-primary/5 last:border-b-0 hover:bg-primary/3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
                         >
                             <p class="text-xs font-semibold text-primary">{{ tpl.name }}</p>
                             <p class="text-[11px] text-primary/50 line-clamp-2 mt-0.5">{{ tpl.rendered_body }}</p>
@@ -363,7 +489,8 @@
                             v-model="draft"
                             @keydown.enter.prevent="submit"
                             :disabled="sending"
-                            class="flex-1 text-sm text-primary placeholder:text-primary/30 focus:outline-none bg-transparent disabled:opacity-50"
+                            aria-label="Escribe un mensaje"
+                            class="flex-1 text-sm text-primary placeholder:text-primary/40 focus:outline-none bg-transparent disabled:opacity-50"
                             type="text"
                             placeholder="Escribe un mensaje..."
                         >
@@ -372,17 +499,25 @@
                                 type="button"
                                 @click="showTemplates = !showTemplates"
                                 :class="[inputBtnStyle, showTemplates ? 'bg-primary/8 text-primary' : '']"
+                                :aria-expanded="showTemplates"
+                                aria-haspopup="menu"
+                                aria-label="Plantillas"
                                 title="Plantillas"
                             >
-                                <Comments />
+                                <Comments aria-hidden="true" />
                             </button>
+                            <!-- El boton principal de la app no tenia ni texto,
+                                 ni title, ni aria-label: para un lector de
+                                 pantalla era completamente anonimo. -->
                             <button
                                 type="button"
                                 @click="submit"
                                 :disabled="!canSend"
+                                aria-label="Enviar mensaje"
+                                title="Enviar mensaje"
                                 :class="inputBtnStyle + ' bg-gradient-to-br from-secondary to-accent-hover text-white hover:brightness-110 rounded-xl px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed'"
                             >
-                                <Sent />
+                                <Sent aria-hidden="true" />
                             </button>
                         </div>
                     </div>

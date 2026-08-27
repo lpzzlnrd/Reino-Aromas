@@ -11,6 +11,7 @@
     import Instagram from '../../icons/social/icon.instagram.vue'
     import Facebook from '../../icons/social/icon.facebook.vue'
     import api from '@/lib/axios'
+    import { useModal } from '@/composables/useModal'
 
     /**
      * Clientes del CRM.
@@ -143,6 +144,15 @@
             loadingDetail.value = false
         }
     }
+
+    /*
+     * Escape, foco atrapado y scroll-lock del body. La ficha se cerraba solo
+     * con clic en el backdrop: en movil el fondo seguia scrolleando por detras
+     * y con teclado se podia tabular hacia los botones tapados por el overlay.
+     */
+    const panelFicha = ref<HTMLElement | null>(null)
+
+    useModal(selected, () => closeDetail(), { panel: panelFicha })
 
     const closeDetail = () => {
         selected.value = null
@@ -418,7 +428,13 @@
             leave-to-class="opacity-0"
         >
             <div v-if="selected" class="fixed inset-0 z-50 flex justify-end bg-primary/20 backdrop-blur-sm" @click.self="closeDetail">
-                <aside class="w-full max-w-md h-full bg-white shadow-2xl overflow-y-auto flex flex-col">
+                <aside
+                    ref="panelFicha"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Ficha del cliente"
+                    class="w-full max-w-md h-full bg-white shadow-2xl overflow-y-auto flex flex-col"
+                >
 
                     <!-- Cabecera de la ficha -->
                     <header class="px-6 py-5 border-b border-primary/8 flex items-start justify-between gap-3 sticky top-0 bg-white z-10">
