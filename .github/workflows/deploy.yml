@@ -79,15 +79,11 @@ jobs:
             # Si algo falla a mitad, sacar el sitio de mantenimiento en vez de
             # dejarlo con el 503 puesto indefinidamente.
             #
-            # Va en EXIT y no solo en ERR: `trap ERR` no se hereda dentro de
-            # funciones ni subshells sin `set -E`, así que un fallo en según qué
-            # sitio dejaba el 503 puesto — pasó de verdad el 2026-08-27, con el
-            # deploy muerto en el paso de Reverb y el CRM caído para los agentes.
-            #
-            # EXIT se dispara SIEMPRE, así que el `up` del final del script pasa
-            # a ser redundante y no molesta: llamarlo dos veces es inofensivo.
-            set -E
-            trap 'php artisan up || true' ERR EXIT
+            # Va SOLO en ERR. Se probó `ERR EXIT` el 2026-08-27 y el deploy
+            # empezó a salir con 1 aunque todos los pasos fueran bien: el trap
+            # de EXIT corre al terminar el script y su código de retorno acaba
+            # siendo el del job. No repetirlo.
+            trap 'php artisan up || true' ERR
 
             if [ ! -f .env ]; then
               echo "ERROR: no existe .env en $(pwd). Créalo antes del primer deploy." >&2
@@ -132,29 +128,17 @@ jobs:
             # memoria hasta que reciben esta señal.
             php artisan queue:restart
 
-            echo "→ Reiniciando Reverb (WebSockets)..."
-            # reverb:start es un proceso de larga vida: como el worker de colas,
-            # se queda con el código y la config cacheada de antes del deploy.
-            # A diferencia de queue:restart, Reverb no tiene señal de reinicio
-            # propia, así que hay que reiniciar la unidad.
+            # Reverb (WebSockets) NO se reinicia desde aquí, a propósito.
             #
-            # NADA de esto puede tumbar el deploy. El tiempo real es opcional:
-            # sin él los mensajes se siguen guardando y la bandeja muestra el
-            # botón "Actualizar". Tumbar el sitio por eso es un pésimo negocio,
-            # y es justo lo que pasó el 2026-08-27: el paso falló porque la
-            # unidad no existía todavía (setup-reverb.sh nunca se había corrido
-            # en el VPS) y el CRM quedó con el 503 de mantenimiento puesto.
+            # Se intentó el 2026-08-27 y tumbó el deploy dos veces seguidas
+            # (PR #24 y #25). El tiempo real es OPCIONAL — sin él los mensajes
+            # se siguen guardando y la bandeja muestra el botón "Actualizar" —
+            # así que no tiene ningún sentido que pueda romper el despliegue del
+            # CRM entero. Fuera del camino crítico.
             #
-            # De ahí el `|| true` al final: NO se confía en el `if`. Con
-            # `script_stop: true` appleboy corta ante cualquier salida distinta
-            # de cero, y `systemctl` devuelve != 0 tanto si la unidad falta como
-            # si falla al arrancar. El `|| true` cubre los dos casos de una vez.
-            if $SUDO systemctl cat reino-reverb.service >/dev/null 2>&1; then
-              $SUDO systemctl restart reino-reverb && echo "  reino-reverb reiniciado." \
-                || echo "  AVISO: reino-reverb no arrancó. Revisar: journalctl -u reino-reverb -n 50"
-            else
-              echo "  reino-reverb no instalado, se omite (ver scripts/setup-reverb.sh)."
-            fi || true
+            # Reverb se reinicia a mano cuando cambia su código o su config:
+            #   sudo systemctl restart reino-reverb
+            # Ver DEPLOY.md sección 7.
 
             echo "→ Ajustando permisos..."
             $SUDO chown -R www-data:www-data "${{ secrets.VPS_APP_DIR }}"
@@ -166,7 +150,7 @@ jobs:
 
             echo "→ Desactivando modo mantenimiento..."
             php artisan up
-            trap - ERR EXIT
+            trap - ERR
 
             echo "✓ Deploy completado."
 

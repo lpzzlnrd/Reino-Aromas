@@ -284,8 +284,19 @@ canal privado, no el WebSocket.
 
 `reverb:start` es un proceso de larga vida y se queda con el código y la config
 cacheada de antes. **No tiene una señal de reinicio propia** como
-`queue:restart`, así que hay que reiniciar la unidad — el workflow de deploy ya
-lo hace, y se salta el paso si la unidad no existe.
+`queue:restart`, así que hay que reiniciar la unidad **a mano**:
+
+```bash
+sudo systemctl restart reino-reverb
+```
+
+**El workflow de deploy NO lo hace, a propósito.** Se intentó el 2026-08-27 y
+tumbó el deploy dos veces seguidas (PR #24 y #25). El tiempo real es opcional —
+sin él los mensajes se siguen guardando y la bandeja muestra el botón
+"Actualizar" — así que no puede estar en el camino crítico del despliegue.
+
+En la práctica solo hace falta reiniciarlo cuando cambian los eventos de
+`app/Events/` o la config de Reverb, no en cada deploy.
 
 Lo mismo vale al cambiar credenciales: Reverb las lee de la **config cacheada**,
 no del `.env`. Sin `config:cache` arranca con los valores viejos y el síntoma no
