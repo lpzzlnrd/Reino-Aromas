@@ -78,7 +78,16 @@ jobs:
 
             # Si algo falla a mitad, sacar el sitio de mantenimiento en vez de
             # dejarlo con el 503 puesto indefinidamente.
-            trap 'php artisan up || true' ERR
+            #
+            # Va en EXIT y no solo en ERR: `trap ERR` no se hereda dentro de
+            # funciones ni subshells sin `set -E`, así que un fallo en según qué
+            # sitio dejaba el 503 puesto — pasó de verdad el 2026-08-27, con el
+            # deploy muerto en el paso de Reverb y el CRM caído para los agentes.
+            #
+            # EXIT se dispara SIEMPRE, así que el `up` del final del script pasa
+            # a ser redundante y no molesta: llamarlo dos veces es inofensivo.
+            set -E
+            trap 'php artisan up || true' ERR EXIT
 
             if [ ! -f .env ]; then
               echo "ERROR: no existe .env en $(pwd). Créalo antes del primer deploy." >&2
@@ -129,15 +138,23 @@ jobs:
             # A diferencia de queue:restart, Reverb no tiene señal de reinicio
             # propia, así que hay que reiniciar la unidad.
             #
-            # El `if` es a propósito: en un VPS donde todavía no se corrió
-            # scripts/setup-reverb.sh la unidad no existe, y un deploy no puede
-            # fallar por eso — el CRM funciona sin tiempo real.
-            if $SUDO systemctl list-unit-files reino-reverb.service | grep -q reino-reverb; then
-              $SUDO systemctl restart reino-reverb
-              echo "  reino-reverb reiniciado."
+            # NADA de esto puede tumbar el deploy. El tiempo real es opcional:
+            # sin él los mensajes se siguen guardando y la bandeja muestra el
+            # botón "Actualizar". Tumbar el sitio por eso es un pésimo negocio,
+            # y es justo lo que pasó el 2026-08-27: el paso falló porque la
+            # unidad no existía todavía (setup-reverb.sh nunca se había corrido
+            # en el VPS) y el CRM quedó con el 503 de mantenimiento puesto.
+            #
+            # De ahí el `|| true` al final: NO se confía en el `if`. Con
+            # `script_stop: true` appleboy corta ante cualquier salida distinta
+            # de cero, y `systemctl` devuelve != 0 tanto si la unidad falta como
+            # si falla al arrancar. El `|| true` cubre los dos casos de una vez.
+            if $SUDO systemctl cat reino-reverb.service >/dev/null 2>&1; then
+              $SUDO systemctl restart reino-reverb && echo "  reino-reverb reiniciado." \
+                || echo "  AVISO: reino-reverb no arrancó. Revisar: journalctl -u reino-reverb -n 50"
             else
               echo "  reino-reverb no instalado, se omite (ver scripts/setup-reverb.sh)."
-            fi
+            fi || true
 
             echo "→ Ajustando permisos..."
             $SUDO chown -R www-data:www-data "${{ secrets.VPS_APP_DIR }}"
@@ -149,7 +166,7 @@ jobs:
 
             echo "→ Desactivando modo mantenimiento..."
             php artisan up
-            trap - ERR
+            trap - ERR EXIT
 
             echo "✓ Deploy completado."
 
