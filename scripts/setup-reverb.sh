@@ -54,8 +54,33 @@ if ss -tlnp 2>/dev/null | grep -qE "127\.0\.0\.1:$PUERTO |0\.0\.0\.0:$PUERTO |\*
     if systemctl is-active --quiet "$SERVICIO"; then
         aviso "Lo ocupa $SERVICIO, que ya está corriendo. Se reiniciará al final."
     else
-        ss -tlnp | grep ":$PUERTO " || true
-        fatal "El puerto $PUERTO está ocupado por otro proceso. Elegí otro con REVERB_PORT_INTERNO=6002."
+        # Caso real (2026-08-27): un `reverb:start` arrancado a mano que quedó
+        # huérfano, ocupando el puerto sin systemd que lo gestione. No es un
+        # conflicto de verdad — es lo que este script viene a reemplazar — así
+        # que se para y se sigue, en vez de abortar y dejarlo suelto.
+        PID_OCUPA=$(ss -tlnpH 2>/dev/null \
+            | grep -E "127\.0\.0\.1:$PUERTO |0\.0\.0\.0:$PUERTO |\*:$PUERTO " \
+            | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2 || true)
+
+        CMD_OCUPA=""
+        [[ -n ${PID_OCUPA:-} ]] && CMD_OCUPA=$(tr '\0' ' ' < "/proc/$PID_OCUPA/cmdline" 2>/dev/null || true)
+
+        if [[ $CMD_OCUPA == *"reverb:start"* ]]; then
+            aviso "Un reverb:start suelto (PID $PID_OCUPA) ocupa el puerto. Se para: systemd lo va a gestionar."
+            kill "$PID_OCUPA" 2>/dev/null || true
+
+            # Se le da margen a que suelte el socket antes de seguir.
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$PID_OCUPA" 2>/dev/null || break
+                sleep 1
+            done
+
+            kill -0 "$PID_OCUPA" 2>/dev/null && kill -9 "$PID_OCUPA" 2>/dev/null || true
+            ok "Puerto liberado"
+        else
+            ss -tlnp | grep ":$PUERTO " || true
+            fatal "El puerto $PUERTO lo ocupa otro proceso (${CMD_OCUPA:-desconocido}). Elegí otro con REVERB_PORT_INTERNO=6002."
+        fi
     fi
 else
     ok "Puerto $PUERTO libre"
