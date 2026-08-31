@@ -34,7 +34,7 @@
     <div class="flex h-full min-h-screen w-full">
 
     <!-- Panel lateral de configuración -->
-    <div id="settings-desktop-menu" class="hidden md:flex md:w-52 md:flex-none shrink-0 border-r border-primary/10 bg-white/60">
+    <div id="settings-desktop-menu" class="hidden md:flex md:w-52 md:flex-none shrink-0 border-r border-primary/10 bg-surface/60">
         <div class="w-full h-full flex flex-col px-3 py-5 gap-1">
             <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Configuración</p>
             <button :class="buttonClass('Accounts')" @click="goTo('Accounts')">

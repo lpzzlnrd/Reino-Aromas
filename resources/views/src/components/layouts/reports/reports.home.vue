@@ -239,7 +239,7 @@
                         'text-[11px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border transition-all cursor-pointer whitespace-nowrap',
                         periodo === p.valor
                             ? 'bg-primary text-white border-primary shadow-sm'
-                            : 'bg-white/60 text-primary/60 border-primary/15 hover:border-primary/40 hover:text-primary/80'
+                            : 'bg-surface/60 text-primary/60 border-primary/15 hover:border-primary/40 hover:text-primary/80'
                     ]"
                 >
                     {{ p.etiqueta }}
@@ -273,7 +273,7 @@
         <template v-else>
             <!-- Cifras de cabecera -->
             <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
+                <div class="relative overflow-hidden bg-surface rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
                     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-400 to-primary rounded-t-2xl"></div>
                     <p class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Clientes nuevos</p>
                     <span v-if="loading" class="inline-block w-14 h-9 bg-primary/8 rounded animate-pulse"></span>
@@ -281,7 +281,7 @@
                     <p class="text-[11px] text-primary/40">en el periodo</p>
                 </div>
 
-                <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
+                <div class="relative overflow-hidden bg-surface rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
                     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-cyan-500 rounded-t-2xl"></div>
                     <p class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Tickets</p>
                     <span v-if="loading" class="inline-block w-14 h-9 bg-primary/8 rounded animate-pulse"></span>
@@ -291,7 +291,7 @@
                     </p>
                 </div>
 
-                <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
+                <div class="relative overflow-hidden bg-surface rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
                     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-400 to-emerald-500 rounded-t-2xl"></div>
                     <p class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Reservas</p>
                     <span v-if="loading" class="inline-block w-14 h-9 bg-primary/8 rounded animate-pulse"></span>
@@ -301,7 +301,7 @@
                     </p>
                 </div>
 
-                <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
+                <div class="relative overflow-hidden bg-surface rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2">
                     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-400 to-rose-600 rounded-t-2xl"></div>
                     <p class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Sin atender</p>
                     <span v-if="loading" class="inline-block w-14 h-9 bg-primary/8 rounded animate-pulse"></span>
@@ -474,7 +474,7 @@
                     <div
                         v-for="ciudad in byCity"
                         :key="ciudad.city"
-                        class="px-4 py-3.5 rounded-xl border border-primary/8 bg-white/60 flex flex-col gap-1"
+                        class="px-4 py-3.5 rounded-xl border border-primary/8 bg-surface/60 flex flex-col gap-1"
                     >
                         <p class="text-xs font-bold text-primary/50 uppercase tracking-widest truncate">{{ ciudad.label }}</p>
                         <p class="text-2xl font-primary text-primary leading-none tabular-nums">{{ ciudad.clients }}</p>

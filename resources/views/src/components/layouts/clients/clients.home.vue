@@ -433,11 +433,11 @@
                     role="dialog"
                     aria-modal="true"
                     aria-label="Ficha del cliente"
-                    class="w-full max-w-md h-full bg-white shadow-2xl overflow-y-auto flex flex-col"
+                    class="w-full max-w-md h-full bg-surface shadow-2xl overflow-y-auto flex flex-col"
                 >
 
                     <!-- Cabecera de la ficha -->
-                    <header class="px-6 py-5 border-b border-primary/8 flex items-start justify-between gap-3 sticky top-0 bg-white z-10">
+                    <header class="px-6 py-5 border-b border-primary/8 flex items-start justify-between gap-3 sticky top-0 bg-surface z-10">
                         <div class="flex items-center gap-3 min-w-0">
                             <img
                                 v-if="selected.profile_picture_url"
@@ -579,7 +579,7 @@
                     </div>
 
                     <!-- Acción -->
-                    <footer class="px-6 py-4 border-t border-primary/8 sticky bottom-0 bg-white">
+                    <footer class="px-6 py-4 border-t border-primary/8 sticky bottom-0 bg-surface">
                         <button @click="openChat" class="btn-primary w-full text-sm py-2.5">
                             Abrir conversación
                         </button>

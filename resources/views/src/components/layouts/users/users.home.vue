@@ -239,7 +239,7 @@
                                 :title="u.is_active ? 'Desactivar' : 'Activar'"
                             >
                                 <span :class="[
-                                    'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
+                                    'inline-block h-3.5 w-3.5 rounded-full bg-surface shadow-sm transition-transform',
                                     u.is_active ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
                                 ]" />
                             </button>
@@ -273,7 +273,7 @@
                     role="dialog"
                     aria-modal="true"
                     aria-label="Datos del usuario"
-                    class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]"
+                    class="relative bg-surface rounded-2xl shadow-2xl w-full max-w-md overflow-y-auto max-h-[90vh]"
                 >
                     <!-- Header modal -->
                     <div class="flex items-center justify-between px-6 py-5 border-b border-primary/8">
@@ -353,7 +353,7 @@
                             <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Rol</label>
                             <select
                                 v-model="form.role"
-                                class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors bg-white"
+                                class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors bg-surface"
                             >
                                 <option value="administrador">Administrador</option>
                                 <option value="superadmin">Superadmin</option>
@@ -375,7 +375,7 @@
                                 ]"
                             >
                                 <span :class="[
-                                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                                    'inline-block h-4 w-4 rounded-full bg-surface shadow transition-transform',
                                     form.is_active ? 'translate-x-6' : 'translate-x-1'
                                 ]" />
                             </button>

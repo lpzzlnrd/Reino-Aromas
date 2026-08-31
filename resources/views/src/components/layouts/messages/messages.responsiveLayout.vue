@@ -176,7 +176,7 @@
          bandeja quedaba en blanco: no habia forma de elegir una conversacion. -->
     <div
         :class="[
-            'md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-white/60',
+            'md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-surface/60',
             selectedId === null ? 'flex w-full' : 'hidden',
         ]"
     >
@@ -209,7 +209,7 @@
                         'text-[10px] font-bold uppercase tracking-widest whitespace-nowrap px-2.5 py-1 rounded-full border transition-all cursor-pointer',
                         filters.case === value
                             ? 'bg-primary text-white border-primary shadow-sm'
-                            : 'bg-white/50 text-primary/60 border-primary/15 hover:border-primary/40 hover:text-primary/80'
+                            : 'bg-surface/50 text-primary/60 border-primary/15 hover:border-primary/40 hover:text-primary/80'
                     ]"
                 >
                     {{ value }} <span class="opacity-60">{{ casesByStatus[value] }}</span>
@@ -350,7 +350,7 @@
                     'w-full text-left px-4 py-3 flex items-start gap-3 border-b border-primary/5 transition-all cursor-pointer',
                     selectedId === chat.id
                         ? 'bg-accent/40 border-l-4 border-l-primary'
-                        : 'hover:bg-white/70'
+                        : 'hover:bg-surface/70'
                 ]"
             >
                 <!-- Avatar -->

@@ -25,12 +25,54 @@
     --color-accent-hover: #E61F93;
     --color-txt: #BD612A;
 
+    /* Superficies. En claro son blanco translucido, como estaban escritas a
+       mano en cada componente; existir como token es lo que permite que el
+       modo oscuro las cambie sin tocar los componentes. */
+    --color-surface: #FFFFFF;
+    --color-surface-soft: rgba(255, 255, 255, 0.72);
+    --color-surface-raised: rgba(255, 252, 237, 0.85);
+    --color-border: rgba(109, 18, 63, 0.10);
+
     --font-primary: 'Roxborough CF';
     --font-secondary: 'Poppins-Regular';
 }
 
+/* ============================================================
+   Modo oscuro
+   ============================================================
+
+   Se activa con data-theme="dark" en <html>, que pone useTheme.ts.
+
+   Los nombres de las variables NO cambian: cambian sus valores. Por eso las
+   382 clases text-primary y las 43 bg-surface del CRM se adaptan solas y no
+   hubo que reescribir los componentes uno por uno.
+
+   Sobre la paleta: el primary de marca (#6D123F, vinotinto) es un color de
+   TEXTO en claro. En oscuro no puede seguir siendo texto -- sobre fondo negro
+   da un contraste de 2:1, ilegible. Se invierte el rol: el texto pasa a ser
+   un rosa palido derivado del accent, que sobre #1A1016 da ~11:1, y el
+   vinotinto se queda como color de fondo de los acentos.
+
+   El fondo no es negro puro sino #14090F, un vinotinto muy oscuro: mantiene
+   la identidad de marca y cansa menos la vista que el #000 plano. */
+[data-theme='dark'] {
+    --color-background: #14090F;
+    --color-primary: #F7D9E2;
+    --color-secondary: #FF8B95;
+    --color-accent: #7A2547;
+    --color-accent-hover: #FF5FB0;
+    --color-txt: #E8A87C;
+
+    --color-surface: #1F1219;
+    --color-surface-soft: rgba(38, 22, 31, 0.72);
+    --color-surface-raised: rgba(31, 18, 25, 0.85);
+    --color-border: rgba(247, 217, 226, 0.12);
+}
+
 body {
     background-color: var(--color-background);
+    /* La transicion es del tema, no del layout: sin ella el cambio parpadea. */
+    transition: background-color 0.2s ease;
 }
 
 .title {
@@ -126,8 +168,8 @@ body {
 
 /* Card de vidrio (glassmorphism suave) */
 .glass-card {
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(109, 18, 63, 0.07);
+    background: var(--color-surface-soft);
+    border: 1px solid var(--color-border);
     border-radius: 1rem;
     box-shadow: 0 1px 3px rgba(109, 18, 63, 0.06), 0 1px 2px rgba(109, 18, 63, 0.04);
     backdrop-filter: blur(8px);
@@ -135,8 +177,8 @@ body {
 
 /* Sidebar de vidrio */
 .glass-sidebar {
-    background: rgba(255, 252, 237, 0.85);
-    border-right: 1px solid rgba(109, 18, 63, 0.08);
+    background: var(--color-surface-raised);
+    border-right: 1px solid var(--color-border);
     box-shadow: 1px 0 8px rgba(109, 18, 63, 0.05);
     backdrop-filter: blur(12px);
 }
@@ -182,7 +224,7 @@ body {
     font-family: var(--font-secondary);
     font-size: 0.8125rem;
     font-weight: 500;
-    color: rgba(109, 18, 63, 0.55);
+    color: color-mix(in srgb, var(--color-primary) 55%, transparent);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -191,13 +233,13 @@ body {
 }
 
 .nav-item:hover {
-    background: rgba(252, 192, 197, 0.35);
+    background: color-mix(in srgb, var(--color-accent) 35%, transparent);
     color: var(--color-primary);
 }
 
 .nav-item.active,
 .router-link-active .nav-item {
-    background: rgba(255, 139, 149, 0.2);
+    background: color-mix(in srgb, var(--color-secondary) 20%, transparent);
     color: var(--color-primary);
     font-weight: 600;
 }
@@ -208,8 +250,8 @@ body {
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.875rem;
-    background: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(109, 18, 63, 0.10);
+    background: var(--color-surface-soft);
+    border: 1px solid var(--color-border);
     border-radius: 0.75rem;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -227,4 +269,43 @@ body {
 
 .animate-fade-in {
     animation: fadeIn 0.25s ease forwards;
+}
+
+/* En oscuro los halos rosados del mesh lavan el fondo y le quitan profundidad.
+   Se bajan a una insinuacion de color en vez de quitarlos: sin ellos el fondo
+   queda plano y pierde la identidad de marca. */
+[data-theme='dark'] .mesh-bg {
+    background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(255, 139, 149, 0.05) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(230, 31, 147, 0.04) 0%, transparent 55%),
+        radial-gradient(ellipse at 60% 80%, rgba(122, 37, 71, 0.10) 0%, transparent 50%);
+}
+
+/* El btn-primary en oscuro: el gradiente accent->secondary queda oscuro y el
+   texto --color-txt encima no se lee. Se fuerza texto oscuro sobre el rosa,
+   que es el par que conserva el contraste. */
+[data-theme='dark'] .btn-primary {
+    color: #1F1219;
+    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-accent-hover) 100%);
+}
+
+/* La tabla de urgentes tiene bordes de 2px con --color-primary, que en oscuro
+   pasa a ser rosa palido: quedaria un marco brillante. Se ata al borde suave. */
+[data-theme='dark'] #urgent-table {
+    border-color: var(--color-border);
+}
+
+[data-theme='dark'] #urgent-table thead th {
+    background: var(--color-accent);
+    color: var(--color-primary);
+    border-bottom-color: var(--color-border);
+}
+
+[data-theme='dark'] #urgent-table tbody td {
+    border-bottom-color: var(--color-border);
+}
+
+[data-theme='dark'] #urgent-table tbody tr:hover {
+    background: var(--color-accent);
+    color: var(--color-primary);
 }

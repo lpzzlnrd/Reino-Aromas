@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -46,6 +47,18 @@ class Contact extends Model
         'first_seen_at' => 'datetime',
         'last_seen_at'  => 'datetime',
     ];
+
+    /**
+     * Un contacto se identifica por el par (canal, id del canal), que es la
+     * clave unica real: el mismo PSID puede repetirse entre canales distintos.
+     *
+     * FacebookSyncService lo llamaba desde el primer dia sin que existiera, asi
+     * que el comando programado moria cada 5 minutos con "undefined method".
+     */
+    public function scopeIdentifiedByChannel(Builder $query, string $channel, string $channelId): Builder
+    {
+        return $query->where('channel', $channel)->where('channel_id', $channelId);
+    }
 
     public function conversations(): HasMany
     {

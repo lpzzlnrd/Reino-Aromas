@@ -218,7 +218,7 @@
 </script>
 
 <template>
-    <div class="h-full border-l border-primary/10 bg-white/50 flex flex-col overflow-y-auto scroll">
+    <div class="h-full border-l border-primary/10 bg-surface/50 flex flex-col overflow-y-auto scroll">
         <!-- Header -->
         <div class="px-4 py-4 border-b border-primary/8">
             <p class="text-xs font-bold text-primary/40 uppercase tracking-widest">Información del contacto</p>
@@ -351,7 +351,7 @@
                     v-model="notes"
                     :disabled="!ticket"
                     aria-label="Notas internas del caso"
-                    class="w-full h-20 text-xs text-primary p-2.5 bg-white/70 border border-primary/12 rounded-xl resize-none focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25 disabled:opacity-50"
+                    class="w-full h-20 text-xs text-primary p-2.5 bg-surface/70 border border-primary/12 rounded-xl resize-none focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25 disabled:opacity-50"
                     :placeholder="ticket ? 'Escribe una nota...' : 'Esta conversación no tiene ticket'"
                 />
 
