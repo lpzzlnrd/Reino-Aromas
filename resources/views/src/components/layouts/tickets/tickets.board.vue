@@ -289,7 +289,7 @@
                         :aria-label="`Caso de ${ticket.contact?.display_name || 'contacto sin nombre'}, ${status}, prioridad ${priorityLabel(ticket.priority)}. Abrir la conversación.`"
                         :aria-busy="moviendo === ticket.id"
                         :class="[
-                            'rounded-xl bg-white/80 border border-primary/8 p-3 cursor-grab active:cursor-grabbing hover:bg-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                            'rounded-xl bg-surface/80 border border-primary/8 p-3 cursor-grab active:cursor-grabbing hover:bg-surface transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
                             priorityClass(ticket.priority),
                             moviendo === ticket.id ? 'opacity-50 pointer-events-none' : ''
                         ]"
@@ -374,7 +374,7 @@
                             @keydown.space.stop
                             :disabled="asignando === ticket.id"
                             :aria-label="`Agente asignado al caso de ${ticket.contact?.display_name || 'contacto sin nombre'}`"
-                            class="w-full text-[10px] py-1 px-1.5 rounded-lg bg-white border border-primary/12 text-primary/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:cursor-wait"
+                            class="w-full text-[10px] py-1 px-1.5 rounded-lg bg-surface border border-primary/12 text-primary/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:cursor-wait"
                         >
                             <option value="">Sin asignar</option>
                             <option v-for="u in agentes" :key="u.id" :value="u.id">

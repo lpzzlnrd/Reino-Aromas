@@ -42,7 +42,7 @@
 
         <!-- Header móvil -->
         <header class="md:hidden sticky top-0 z-50 flex items-center justify-between px-4 py-3
-                        bg-white/80 backdrop-blur-md border-b border-primary/8 shadow-sm">
+                        bg-surface/80 backdrop-blur-md border-b border-primary/8 shadow-sm">
             <button @click="toggle" aria-label="Abrir menú"
                     class="p-2 rounded-xl bg-accent/30 text-primary hover:bg-accent transition-colors">
                 <Bars />
@@ -135,7 +135,7 @@
                     role="dialog"
                     aria-modal="true"
                     aria-label="Menú de navegación"
-                    class="w-72 bg-white/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6"
+                    class="w-72 bg-surface/95 backdrop-blur-xl h-full shadow-2xl flex flex-col p-6"
                 >
                     <header class="flex items-center justify-between mb-8">
                         <Logo class="w-20" />

@@ -398,6 +398,105 @@ class WhatsAppService
     }
 
     /**
+     * Dispara la sincronizacion de datos de la app de WhatsApp Business
+     * (coexistencia).
+     *
+     * Cuando un negocio conecta su numero desde la app -- Ajustes > Cuenta >
+     * Plataforma de Business -- el numero queda enlazado a Cloud API, pero
+     * Meta NO manda el historial por su cuenta: hay que pedirlo. Esto es ese
+     * pedido.
+     *
+     * Dos tipos, y hacen falta los dos:
+     *   - 'smb_app_state_sync' -> los contactos, por webhooks smb_app_state_sync
+     *   - 'history'            -> hasta 6 meses de chats, por webhooks history
+     *
+     * Tres trampas que la doc de Meta marca y que cuesta caro descubrir tarde:
+     *
+     *   1. HAY 24 HORAS desde que el negocio completa la conexion. Pasadas,
+     *      el numero debe desvincularse y volver a conectarse desde cero.
+     *   2. CADA TIPO SE PIDE UNA SOLA VEZ. Un segundo intento no reenvia nada;
+     *      obliga al mismo ciclo de desvincular y reconectar.
+     *   3. El negocio decide si comparte el historial. Si dijo que no, llega
+     *      un webhook history con error 2593109 en vez de los mensajes: la
+     *      llamada fue exitosa igual, no es un fallo nuestro.
+     *
+     * El request_id se registra en el log a proposito: es lo que pide el
+     * soporte de Meta si la sincronizacion no llega.
+     *
+     * @param  string $syncType 'smb_app_state_sync' (contactos) o 'history' (chats).
+     * @param  string|null $phoneNumberId Numero a sincronizar; por defecto el del .env.
+     * @return array{success: bool, request_id?: string, error?: mixed}
+     */
+    public function syncSmbAppData(string $syncType, ?string $phoneNumberId = null): array
+    {
+        if (! in_array($syncType, ['smb_app_state_sync', 'history'], true)) {
+            return ['success' => false, 'error' => "sync_type invalido: {$syncType}"];
+        }
+
+        $phoneNumberId ??= $this->credentials->obtener('whatsapp_phone_number_id');
+        $accessToken     = $this->credentials->obtener('access_token');
+
+        $response = Http::timeout(30)
+            ->withToken($accessToken)
+            ->post($this->credentials->urlGraph("{$phoneNumberId}/smb_app_data"), [
+                'messaging_product' => 'whatsapp',
+                'sync_type'         => $syncType,
+            ]);
+
+        if ($response->failed()) {
+            $error = $response->json('error', []);
+
+            Log::error('[WhatsApp] Fallo al pedir la sincronizacion de coexistencia', [
+                'sync_type'       => $syncType,
+                'phone_number_id' => $phoneNumberId,
+                'error'           => $error,
+            ]);
+
+            return ['success' => false, 'error' => $error];
+        }
+
+        $requestId = $response->json('request_id');
+
+        Log::info('[WhatsApp] Sincronizacion de coexistencia solicitada', [
+            'sync_type'       => $syncType,
+            'phone_number_id' => $phoneNumberId,
+            'request_id'      => $requestId,
+        ]);
+
+        return ['success' => true, 'request_id' => $requestId];
+    }
+
+    /**
+     * Comprueba si un numero esta en coexistencia (Cloud API + app a la vez).
+     *
+     * Sirve para saber si la conexion desde la app funciono antes de gastar
+     * uno de los dos intentos de sincronizacion, que no se pueden repetir.
+     *
+     * @return array{success: bool, is_on_biz_app?: bool, platform_type?: string, error?: mixed}
+     */
+    public function checkCoexistenceStatus(?string $phoneNumberId = null): array
+    {
+        $phoneNumberId ??= $this->credentials->obtener('whatsapp_phone_number_id');
+        $accessToken     = $this->credentials->obtener('access_token');
+
+        $response = Http::timeout(20)
+            ->withToken($accessToken)
+            ->get($this->credentials->urlGraph((string) $phoneNumberId), [
+                'fields' => 'is_on_biz_app,platform_type',
+            ]);
+
+        if ($response->failed()) {
+            return ['success' => false, 'error' => $response->json('error', [])];
+        }
+
+        return [
+            'success'       => true,
+            'is_on_biz_app' => (bool) $response->json('is_on_biz_app'),
+            'platform_type' => (string) $response->json('platform_type'),
+        ];
+    }
+
+    /**
      * Envía el mensaje interactivo que abre un WhatsApp Flow.
      *
      * Solo funciona DENTRO de la ventana de servicio de 24h (es decir, cuando

@@ -356,7 +356,7 @@
 
             <select
                 v-model="filtroCiudad"
-                class="px-3 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-white focus:outline-none focus:border-secondary/50 transition-colors"
+                class="px-3 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-surface focus:outline-none focus:border-secondary/50 transition-colors"
             >
                 <option value="todas">Todas las ciudades</option>
                 <option v-for="c in CIUDADES" :key="c.valor" :value="c.valor">{{ c.etiqueta }}</option>
@@ -364,7 +364,7 @@
 
             <select
                 v-model="filtroCanal"
-                class="px-3 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-white focus:outline-none focus:border-secondary/50 transition-colors"
+                class="px-3 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-surface focus:outline-none focus:border-secondary/50 transition-colors"
             >
                 <option value="todos">Todos los canales</option>
                 <option v-for="c in CANALES" :key="c.valor" :value="c.valor">{{ c.etiqueta }}</option>
@@ -428,7 +428,7 @@
                         :title="t.is_active ? 'Desactivar' : 'Activar'"
                     >
                         <span :class="[
-                            'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
+                            'inline-block h-3.5 w-3.5 rounded-full bg-surface shadow-sm transition-transform',
                             t.is_active ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
                         ]" />
                     </button>
@@ -507,10 +507,10 @@
                         role="dialog"
                         aria-modal="true"
                         aria-label="Editor de plantilla"
-                        class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-y-auto max-h-[92vh]"
+                        class="relative bg-surface rounded-2xl shadow-2xl w-full max-w-2xl overflow-y-auto max-h-[92vh]"
                     >
                         <!-- Header -->
-                        <div class="flex items-center justify-between px-6 py-5 border-b border-primary/8 sticky top-0 bg-white z-10">
+                        <div class="flex items-center justify-between px-6 py-5 border-b border-primary/8 sticky top-0 bg-surface z-10">
                             <div>
                                 <h2 class="text-lg font-primary text-primary">
                                     {{ editando ? 'Editar plantilla' : 'Nueva plantilla' }}
@@ -547,7 +547,7 @@
                                     <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Ciudad</label>
                                     <select
                                         v-model="form.city"
-                                        class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-white focus:outline-none focus:border-secondary/50 transition-colors"
+                                        class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-surface focus:outline-none focus:border-secondary/50 transition-colors"
                                     >
                                         <option value="">Todas las ciudades</option>
                                         <option v-for="c in CIUDADES" :key="c.valor" :value="c.valor">{{ c.etiqueta }}</option>
@@ -558,7 +558,7 @@
                                     <label class="text-[11px] font-bold text-primary/50 uppercase tracking-widest">Canal</label>
                                     <select
                                         v-model="form.channel"
-                                        class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-white focus:outline-none focus:border-secondary/50 transition-colors"
+                                        class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary bg-surface focus:outline-none focus:border-secondary/50 transition-colors"
                                     >
                                         <option value="">Todos los canales</option>
                                         <option v-for="c in CANALES" :key="c.valor" :value="c.valor">{{ c.etiqueta }}</option>
@@ -785,7 +785,7 @@
                                     ]"
                                 >
                                     <span :class="[
-                                        'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                                        'inline-block h-4 w-4 rounded-full bg-surface shadow transition-transform',
                                         form.is_active ? 'translate-x-6' : 'translate-x-1'
                                     ]" />
                                 </button>
@@ -824,7 +824,7 @@
                         role="dialog"
                         aria-modal="true"
                         aria-label="Confirmar el borrado"
-                        class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+                        class="relative bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6"
                     >
                         <h3 class="text-base font-primary text-primary">¿Borrar esta plantilla?</h3>
                         <p class="text-sm text-primary/55 mt-2 leading-relaxed">

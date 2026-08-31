@@ -67,7 +67,7 @@
     useModal(showTemplates, () => { showTemplates.value = false }, { panel: panelPlantillas })
 
     const inputBtnStyle = 'p-2 cursor-pointer hover:bg-primary/8 text-primary/50 hover:text-primary rounded-xl transition-colors'
-    const clientText = 'max-w-sm text-left px-4 py-2.5 bg-white border border-primary/10 rounded-2xl rounded-tl-sm shadow-sm text-sm text-primary leading-relaxed'
+    const clientText = 'max-w-sm text-left px-4 py-2.5 bg-surface border border-primary/10 rounded-2xl rounded-tl-sm shadow-sm text-sm text-primary leading-relaxed'
     const adminText = 'max-w-sm ml-auto text-left px-4 py-2.5 bg-gradient-to-br from-secondary/30 to-accent/40 border border-secondary/20 rounded-2xl rounded-tr-sm shadow-sm text-sm text-primary leading-relaxed'
 
     const completedTickets = computed(() => byStatus.value[CaseStatus.Closed] ?? 0)
@@ -294,7 +294,7 @@
             <!-- Panel de mensajes -->
             <div class="h-full flex-1 flex flex-col min-w-0">
                 <!-- Header del chat -->
-                <header class="px-5 py-3.5 border-b border-primary/8 bg-white/60 backdrop-blur-sm flex items-center justify-between shrink-0">
+                <header class="px-5 py-3.5 border-b border-primary/8 bg-surface/60 backdrop-blur-sm flex items-center justify-between shrink-0">
                     <div class="flex items-center gap-3 min-w-0">
                         <!-- Volver a la lista. Solo en móvil: ahí el chat tapa
                              la lista entera, así que sin este botón se entra a
@@ -446,14 +446,14 @@
                 </div>
 
                 <!-- Input bar -->
-                <footer class="px-4 py-3 border-t border-primary/8 bg-white/40 shrink-0 relative">
+                <footer class="px-4 py-3 border-t border-primary/8 bg-surface/40 shrink-0 relative">
                     <!-- Selector de plantillas -->
                     <div
                         v-if="showTemplates"
                         ref="panelPlantillas"
                         role="menu"
                         aria-label="Plantillas disponibles"
-                        class="absolute bottom-full left-4 right-4 mb-2 max-h-64 overflow-y-auto bg-white border border-primary/12 rounded-2xl shadow-lg z-10"
+                        class="absolute bottom-full left-4 right-4 mb-2 max-h-64 overflow-y-auto bg-surface border border-primary/12 rounded-2xl shadow-lg z-10"
                     >
                         <!-- El fallo de red se distingue del "no hay ninguna":
                              fuera de la ventana de 24h las plantillas son el
@@ -484,7 +484,7 @@
                         Esta conversación está cerrada. Reábrela para poder responder.
                     </p>
 
-                    <div v-else class="flex items-center gap-2 bg-white border border-primary/12 rounded-2xl px-3 py-2 shadow-sm focus-within:border-secondary/50 transition-colors">
+                    <div v-else class="flex items-center gap-2 bg-surface border border-primary/12 rounded-2xl px-3 py-2 shadow-sm focus-within:border-secondary/50 transition-colors">
                         <input
                             v-model="draft"
                             @keydown.enter.prevent="submit"

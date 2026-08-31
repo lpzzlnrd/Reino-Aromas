@@ -25,7 +25,7 @@
         <div
             v-for="card in cards"
             :key="card.label"
-            class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+            class="relative overflow-hidden bg-surface rounded-2xl shadow-sm border border-primary/8 p-5 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
         >
             <!-- Barra de color superior -->
             <div :class="`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.accent} rounded-t-2xl`"></div>
