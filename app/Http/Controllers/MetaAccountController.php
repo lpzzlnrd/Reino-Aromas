@@ -256,11 +256,16 @@ class MetaAccountController extends MetaBaseController
     private function intercambiarCode(string $code): ?array
     {
         try {
-            $response = Http::timeout(20)->get($this->credentials->urlGraph('oauth/access_token'), [
-                'client_id'     => $this->credentials->obtener('app_id'),
-                'client_secret' => $this->credentials->obtener('app_secret'),
-                'code'          => $code,
-            ]);
+            // POST y no GET: en GET el client_secret viaja en la query string y
+            // queda escrito en los access logs de nginx y de cualquier proxy
+            // intermedio. Meta acepta ambos verbos en este endpoint.
+            $response = Http::timeout(20)
+                ->asForm()
+                ->post($this->credentials->urlGraph('oauth/access_token'), [
+                    'client_id'     => $this->credentials->obtener('app_id'),
+                    'client_secret' => $this->credentials->obtener('app_secret'),
+                    'code'          => $code,
+                ]);
         } catch (\Throwable $e) {
             Log::error('[Meta] Falló el intercambio del code', ['error' => $e->getMessage()]);
 

@@ -420,7 +420,16 @@
             </div>
         </div>
 
-        <!-- Panel de detalle -->
+        <!-- Panel de detalle.
+
+             El Teleport NO es decorativo: sin el, el overlay hereda del arbol
+             del layout el padding del contenedor (px-4 lg:px-8), su
+             overflow-x-hidden -- que recorta a los hijos con position:fixed --
+             y su orden de apilamiento, donde el header movil (z-50) se pinta
+             DESPUES y tapa el backdrop. Colgado del body, el fixed inset-0
+             recupera el viewport completo. Los otros tres modales del CRM ya
+             lo hacian asi; este era el unico que no. -->
+        <Teleport to="body">
         <Transition
             enter-active-class="transition-opacity duration-200"
             enter-from-class="opacity-0"
@@ -433,7 +442,7 @@
                     role="dialog"
                     aria-modal="true"
                     aria-label="Ficha del cliente"
-                    class="w-full max-w-md h-full bg-surface shadow-2xl overflow-y-auto flex flex-col"
+                    class="w-full max-w-md h-dvh bg-surface shadow-2xl overflow-y-auto flex flex-col"
                 >
 
                     <!-- Cabecera de la ficha -->
@@ -587,5 +596,6 @@
                 </aside>
             </div>
         </Transition>
+        </Teleport>
     </div>
 </template>
