@@ -159,15 +159,29 @@ class ProcessMetaWebhookJob implements ShouldQueue
             // Un contacto que ya existía con el nombre de relleno se corrige en
             // cuanto la API responde: los que se guardaron antes de tener
             // Advanced Access quedarían con "Facebook User" para siempre.
+            //
+            // Va en try/catch porque el perfil es un ADORNO y el mensaje es el
+            // dato. Cuando profile_picture_url era VARCHAR(255), una URL de la
+            // CDN de Meta (~470 caracteres) hacía rollback de toda la
+            // transacción y el Message::create() de más abajo no se ejecutaba:
+            // se perdía el mensaje entero por una foto. La columna ya es TEXT,
+            // pero el mensaje no debe volver a depender de que el perfil quepa.
             if (
                 ! $contact->wasRecentlyCreated
                 && isset($perfil['name'])
                 && $contact->display_name === self::NOMBRE_DESCONOCIDO
             ) {
-                $contact->forceFill([
-                    'display_name' => $perfil['name'],
-                    'profile_picture_url' => $perfil['profile_pic'] ?? $contact->profile_picture_url,
-                ])->save();
+                try {
+                    $contact->forceFill([
+                        'display_name' => $perfil['name'],
+                        'profile_picture_url' => $perfil['profile_pic'] ?? $contact->profile_picture_url,
+                    ])->save();
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo actualizar el perfil del contacto', [
+                        'contact_id' => $contact->id,
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
             }
 
             $conversation = $contact->activeConversation()->first();
