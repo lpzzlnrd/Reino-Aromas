@@ -49,7 +49,7 @@ class FlowEndpointController extends Controller
     ) {}
 
     /**
-     * POST /api/flows/endpoint
+     * POST /api/webhooks/flows
      */
     public function __invoke(Request $request): Response
     {
