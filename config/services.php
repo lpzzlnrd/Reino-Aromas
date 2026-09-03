@@ -42,6 +42,16 @@ return [
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
         'graph_api_version'    => env('META_GRAPH_API_VERSION', 'v21.0'),
         'instagram_account_id'      => env('META_INSTAGRAM_ACCOUNT_ID'),
+
+        /*
+        | Secret propio del producto "Instagram API con login de Instagram",
+        | que es una app APARTE de la principal y tiene su propio app secret.
+        | Meta firma los webhooks de Instagram con ESE secret, no con
+        | META_APP_SECRET, asi que sin esto la firma no valida y el webhook
+        | se rechaza con 403. Si queda vacio se usa META_APP_SECRET, que es
+        | lo correcto cuando Instagram entra por el topic de la app principal.
+        */
+        'instagram_app_secret'      => env('META_INSTAGRAM_APP_SECRET'),
         'whatsapp_phone_number_id'  => env('META_WHATSAPP_PHONE_NUMBER_ID'),
 
         /*

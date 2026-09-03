@@ -141,15 +141,44 @@ class InstagramService
      */
     public function verifySignature(string $rawBody, string $signature): bool
     {
-        if (! $this->credentials->tiene('app_secret')) {
-            Log::error('[Instagram] META_APP_SECRET no está configurado: se rechaza el webhook por no poder verificar su firma.');
+        // Instagram puede entrar por dos caminos, y CADA UNO firma con un
+        // secret distinto:
+        //
+        //   a) el producto "Instagram API con login de Instagram", que es una
+        //      app aparte con su propio app secret -> META_INSTAGRAM_APP_SECRET
+        //   b) el topic 'instagram' de la app principal -> META_APP_SECRET
+        //
+        // Usar el secret equivocado devuelve 403 a Meta y el mensaje se pierde
+        // sin dejar rastro en el log de Laravel: el rechazo ocurre antes.
+        // Se prueban los dos en vez de elegir por configuracion, porque asi la
+        // integracion sigue funcionando si el negocio cambia de camino sin que
+        // nadie se acuerde de tocar el .env.
+        $secretos = array_values(array_filter([
+            $this->credentials->obtener('instagram_app_secret'),
+            $this->credentials->obtener('app_secret'),
+        ]));
+
+        if ($secretos === []) {
+            Log::error('[Instagram] Sin META_INSTAGRAM_APP_SECRET ni META_APP_SECRET: se rechaza el webhook por no poder verificar su firma.');
 
             return false;
         }
 
-        $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $this->credentials->obtener('app_secret'));
+        foreach ($secretos as $secreto) {
+            $expected = 'sha256=' . hash_hmac('sha256', $rawBody, (string) $secreto);
 
-        return hash_equals($expected, $signature);
+            // hash_equals y no ===: comparar firmas con == filtra informacion
+            // por el tiempo que tarda en fallar.
+            if (hash_equals($expected, $signature)) {
+                return true;
+            }
+        }
+
+        Log::warning('[Instagram] Firma del webhook invalida con todos los secrets configurados.', [
+            'secrets_probados' => count($secretos),
+        ]);
+
+        return false;
     }
 
     private function resolveMessageType(array $messageData): string
