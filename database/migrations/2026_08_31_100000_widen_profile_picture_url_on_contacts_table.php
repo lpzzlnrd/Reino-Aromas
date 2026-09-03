@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -31,7 +32,7 @@ return new class extends Migration
         // Volver a 255 truncaría las URLs largas ya guardadas. Se vacían las que
         // no caben en vez de dejar que MySQL corte a ciegas y deje una URL rota
         // que parece válida.
-        \DB::table('contacts')
+        DB::table('contacts')
             ->whereRaw('CHAR_LENGTH(profile_picture_url) > 255')
             ->update(['profile_picture_url' => null]);
 

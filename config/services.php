@@ -52,6 +52,14 @@ return [
         | lo correcto cuando Instagram entra por el topic de la app principal.
         */
         'instagram_app_secret'      => env('META_INSTAGRAM_APP_SECRET'),
+
+        /*
+        | Token del producto "Instagram API con login de Instagram". Ese
+        | producto se sirve desde graph.instagram.com y NO acepta el token de
+        | sistema de la app principal. Si queda vacio se usa META_ACCESS_TOKEN,
+        | que es lo correcto cuando Instagram entra por la app principal.
+        */
+        'instagram_access_token'    => env('META_INSTAGRAM_ACCESS_TOKEN'),
         'whatsapp_phone_number_id'  => env('META_WHATSAPP_PHONE_NUMBER_ID'),
 
         /*
