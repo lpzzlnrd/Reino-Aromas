@@ -42,6 +42,7 @@ class MetaCredentials
         'access_token'             => 'META_ACCESS_TOKEN',
         'webhook_verify_token'     => 'META_WEBHOOK_VERIFY_TOKEN',
         'instagram_account_id'     => 'META_INSTAGRAM_ACCOUNT_ID',
+        'instagram_app_secret'     => 'META_INSTAGRAM_APP_SECRET',
         'whatsapp_phone_number_id' => 'META_WHATSAPP_PHONE_NUMBER_ID',
         'facebook.page_id'           => 'META_FACEBOOK_PAGE_ID',
         'facebook.page_access_token' => 'META_FACEBOOK_PAGE_ACCESS_TOKEN',
