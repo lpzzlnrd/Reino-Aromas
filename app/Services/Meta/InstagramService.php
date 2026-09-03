@@ -44,6 +44,14 @@ class InstagramService
         $senderId = $messaging['sender']['id'] ?? null;
         $messageData = $messaging['message'] ?? null;
 
+        // Instagram manda por el mismo campo 'messaging' los acuses de lectura
+        // y de entrega, que traen 'read' o 'delivery' en vez de 'message'. No
+        // son errores: se ignoran en silencio. Antes caian en el warning de
+        // abajo y llenaban el log de ruido que parecia un fallo.
+        if (isset($messaging['read']) || isset($messaging['delivery'])) {
+            return;
+        }
+
         if (!$senderId || !$messageData) {
             Log::warning('[Instagram] Evento de mensajería sin sender o message', $messaging);
             return;
@@ -62,8 +70,15 @@ class InstagramService
             return;
         }
 
+        // El webhook de Instagram NO trae el nombre: 'sender' solo lleva el id
+        // (a diferencia de Messenger, donde sender.name viene en el payload).
+        // El username se pide aparte a la User Profile API.
+        $perfil = $this->fetchUserProfile($senderId);
+
         $contact = $this->contactService->findOrCreate('instagram', $senderId, [
-            'display_name' => $messaging['sender']['name'] ?? null,
+            'display_name'        => $perfil['username'] ?? $perfil['name'] ?? null,
+            'instagram_handle'    => $perfil['username'] ?? null,
+            'profile_picture_url' => $perfil['profile_pic'] ?? null,
         ]);
 
         $conversation = $this->conversationService->getOrOpenActive($contact);
@@ -96,6 +111,66 @@ class InstagramService
             'media_url'       => $mediaUrl,
             'meta_payload'    => $messageData,
             'status'          => 'delivered',
+        ]);
+    }
+
+    /**
+     * Pide el perfil del usuario a la User Profile API.
+     *
+     * Hace falta porque el webhook de Instagram solo manda `sender.id`; el
+     * nombre y el username hay que pedirlos con una llamada aparte al nodo del
+     * IGSID.
+     *
+     * Se prefiere `username` sobre `name` para el nombre visible: en Instagram
+     * la gente se reconoce por el @, y `name` puede venir null si el usuario no
+     * lo configuro.
+     *
+     * Nunca lanza: un contacto sin nombre es peor que uno llamado "Instagram
+     * User", pero perder el MENSAJE por no poder resolver el perfil es mucho
+     * peor. Si falla, se registra y el mensaje se guarda igual.
+     *
+     * @return array{name?: string, username?: string, profile_pic?: string}
+     */
+    private function fetchUserProfile(string $igsid): array
+    {
+        $accessToken = $this->credentials->obtener('instagram_access_token')
+            ?: $this->credentials->obtener('access_token');
+
+        if (! $accessToken) {
+            return [];
+        }
+
+        try {
+            $response = Http::timeout(10)
+                ->withToken($accessToken)
+                ->get($this->credentials->urlGraphInstagram($igsid), [
+                    'fields' => 'name,username,profile_pic',
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('[Instagram] No se pudo pedir el perfil del usuario', [
+                'igsid' => $igsid,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        if ($response->failed()) {
+            // El caso normal: "User consent is required to access user profile"
+            // cuando el usuario comento pero nunca escribio. No es un fallo
+            // nuestro, asi que se registra como info y no como error.
+            Log::info('[Instagram] Perfil no disponible', [
+                'igsid' => $igsid,
+                'error' => $response->json('error.message'),
+            ]);
+
+            return [];
+        }
+
+        return array_filter([
+            'name'        => $response->json('name'),
+            'username'    => $response->json('username'),
+            'profile_pic' => $response->json('profile_pic'),
         ]);
     }
 
