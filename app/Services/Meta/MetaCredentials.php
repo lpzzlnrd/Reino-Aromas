@@ -43,6 +43,7 @@ class MetaCredentials
         'webhook_verify_token'     => 'META_WEBHOOK_VERIFY_TOKEN',
         'instagram_account_id'     => 'META_INSTAGRAM_ACCOUNT_ID',
         'instagram_app_secret'     => 'META_INSTAGRAM_APP_SECRET',
+        'instagram_access_token'   => 'META_INSTAGRAM_ACCESS_TOKEN',
         'whatsapp_phone_number_id' => 'META_WHATSAPP_PHONE_NUMBER_ID',
         'facebook.page_id'           => 'META_FACEBOOK_PAGE_ID',
         'facebook.page_access_token' => 'META_FACEBOOK_PAGE_ACCESS_TOKEN',
@@ -112,6 +113,30 @@ class MetaCredentials
     public function urlGraph(string $ruta = ''): string
     {
         $base = 'https://graph.facebook.com/' . $this->versionApi();
+
+        return $ruta === '' ? $base : $base . '/' . ltrim($ruta, '/');
+    }
+
+    /**
+     * URL para el producto "Instagram API con login de Instagram".
+     *
+     * Ese producto NO se sirve desde graph.facebook.com: la doc de Meta dice
+     * "All endpoints can be accessed via the graph.instagram.com host". Usar el
+     * host de Facebook devuelve
+     *
+     *   (#3) Application does not have the capability to make this API call
+     *
+     * que suena a permiso faltante y es en realidad el host equivocado: la app
+     * principal no tiene la capacidad de mensajeria de Instagram, la app de
+     * Instagram si.
+     *
+     * Se mantiene aparte de urlGraph() porque el resto de la integracion
+     * (WhatsApp, Messenger, la Graph API general) sigue en graph.facebook.com
+     * y cambiar el host global romperia todo lo que hoy funciona.
+     */
+    public function urlGraphInstagram(string $ruta = ''): string
+    {
+        $base = 'https://graph.instagram.com/' . $this->versionApi();
 
         return $ruta === '' ? $base : $base . '/' . ltrim($ruta, '/');
     }

@@ -108,13 +108,20 @@ class InstagramService
         // Falla con el nombre de la variable ausente en vez de pedirle a Meta
         // una URL con el id vacío.
         $igAccountId = $this->credentials->obtener('instagram_account_id');
-        $accessToken = $this->credentials->obtener('access_token');
 
+        // El producto "Instagram API con login de Instagram" tiene su propio
+        // token; si no está configurado se cae al de la app principal, que es
+        // el correcto cuando Instagram entra por el topic de esa app.
+        $accessToken = $this->credentials->obtener('instagram_access_token')
+            ?: $this->credentials->obtener('access_token');
+
+        // graph.instagram.com, NO graph.facebook.com: el host de Facebook
+        // responde "(#3) Application does not have the capability to make this
+        // API call" para estos endpoints. Ver urlGraphInstagram().
         $response = Http::withToken($accessToken)
-            ->post($this->credentials->urlGraph("{$igAccountId}/messages"), [
-                'recipient'      => ['id' => $recipientIgsid],
-                'message'        => ['text' => $text],
-                'messaging_type' => 'RESPONSE',
+            ->post($this->credentials->urlGraphInstagram("{$igAccountId}/messages"), [
+                'recipient' => ['id' => $recipientIgsid],
+                'message'   => ['text' => $text],
             ]);
 
         if ($response->failed()) {
