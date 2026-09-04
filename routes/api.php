@@ -14,6 +14,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MetaAccountController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\InstagramAutomationController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
@@ -146,6 +147,28 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     // del contacto. Vive fuera del prefijo /meta porque no depende de Meta.
     Route::get('/conversations/{conversation}/templates', [TemplateController::class, 'forConversation'])
         ->name('api.conversations.templates');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Automatizaciones de Instagram (Ice Breakers y Persistent Menu)
+    |
+    | Instagram no tiene WhatsApp Flows. Estos dos mecanismos son lo mas
+    | cercano: botones que disparan un webhook `messaging_postbacks` y el CRM
+    | responde con una plantilla o un texto fijo.
+    |
+    | OJO con el orden: /sync y /meta-state van ANTES de las rutas con
+    | {automation}, o Laravel intentaria resolver "sync" como un id.
+    |-------------------------------------------------------------------------
+    */
+    Route::prefix('instagram/automations')->name('api.instagram.automations.')->group(function (): void {
+        Route::post('/sync', [InstagramAutomationController::class, 'sync'])->name('sync');
+        Route::get('/meta-state', [InstagramAutomationController::class, 'metaState'])->name('meta-state');
+
+        Route::get('/', [InstagramAutomationController::class, 'index'])->name('index');
+        Route::post('/', [InstagramAutomationController::class, 'store'])->name('store');
+        Route::patch('/{automation}', [InstagramAutomationController::class, 'update'])->name('update');
+        Route::delete('/{automation}', [InstagramAutomationController::class, 'destroy'])->name('destroy');
+    });
 
     /*
     |-------------------------------------------------------------------------

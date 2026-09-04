@@ -4,10 +4,12 @@ namespace App\Services\Meta;
 
 use App\Models\Contact;
 use App\Models\Conversation;
+use App\Models\InstagramAutomation;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Services\ContactService;
 use App\Services\ConversationService;
+use App\Services\OutboundMessageService;
 use App\Services\TicketService;
 use App\Services\ActivityLogService;
 use Illuminate\Support\Facades\Http;
@@ -20,6 +22,7 @@ class InstagramService
         private ConversationService $conversationService,
         private TicketService $ticketService,
         private ActivityLogService $activityLogService,
+        private OutboundMessageService $outbound,
         private MetaCredentials $credentials = new MetaCredentials(),
     ) {}
 
@@ -49,6 +52,15 @@ class InstagramService
         // son errores: se ignoran en silencio. Antes caian en el warning de
         // abajo y llenaban el log de ruido que parecia un fallo.
         if (isset($messaging['read']) || isset($messaging['delivery'])) {
+            return;
+        }
+
+        // Los botones automaticos (Ice Breakers y Persistent Menu) no llegan
+        // como 'message' sino como 'postback'. Se atienden ANTES de exigir
+        // messageData, o caerian en el warning de abajo y no harian nada.
+        if ($senderId && isset($messaging['postback'])) {
+            $this->handlePostback($senderId, $messaging['postback']);
+
             return;
         }
 
@@ -112,6 +124,101 @@ class InstagramService
             'meta_payload'    => $messageData,
             'status'          => 'delivered',
         ]);
+    }
+
+    /**
+     * Alguien toco un Ice Breaker o una entrada del Persistent Menu.
+     *
+     * El `payload` es el string que se configuro en el CRM y que Meta devuelve
+     * tal cual: es lo unico que permite saber QUE boton se toco.
+     *
+     * Se crea contacto, conversacion y ticket igual que con un mensaje normal,
+     * porque para el negocio esto ES un lead entrante: la diferencia es que ya
+     * viene con una intencion declarada.
+     *
+     * El titulo del boton se guarda como mensaje entrante para que el agente
+     * vea en el chat que pregunto la persona; sin eso, la conversacion
+     * empezaria con la respuesta automatica y nadie sabria a que responde.
+     *
+     * @param array<string, mixed> $postback
+     */
+    private function handlePostback(string $senderId, array $postback): void
+    {
+        $payload = (string) ($postback['payload'] ?? '');
+        $titulo  = (string) ($postback['title'] ?? '');
+
+        if ($payload === '') {
+            Log::warning('[Instagram] Postback sin payload', $postback);
+
+            return;
+        }
+
+        $automatizacion = InstagramAutomation::query()
+            ->where('payload', $payload)
+            ->first();
+
+        // Un payload que el CRM no conoce: quedo configurado en Meta por fuera,
+        // o se borro del CRM sin resincronizar. No se descarta el evento --
+        // sigue siendo un lead -- pero se avisa para poder limpiarlo.
+        if ($automatizacion === null) {
+            Log::warning('[Instagram] Postback de un boton que el CRM no conoce', [
+                'payload' => $payload,
+                'titulo'  => $titulo,
+            ]);
+        }
+
+        $perfil = $this->fetchUserProfile($senderId);
+
+        $contact = $this->contactService->findOrCreate('instagram', $senderId, [
+            'display_name'        => $perfil['username'] ?? $perfil['name'] ?? null,
+            'instagram_handle'    => $perfil['username'] ?? null,
+            'profile_picture_url' => $perfil['profile_pic'] ?? null,
+        ]);
+
+        $conversation = $this->conversationService->getOrOpenActive($contact);
+
+        // El boton pulsado, como mensaje entrante. external_id null: Meta no
+        // manda un mid para los postbacks, y la columna es unique -- dos
+        // postbacks con external_id vacio chocarian.
+        Message::create([
+            'conversation_id' => $conversation->id,
+            'sender_user_id'  => null,
+            'direction'       => 'inbound',
+            'channel'         => 'instagram',
+            'external_id'     => null,
+            'type'            => 'text',
+            'body'            => $titulo !== '' ? $titulo : $payload,
+            'meta_payload'    => $postback,
+            'status'          => 'delivered',
+        ]);
+
+        $this->ticketService->ensureTicketExists($conversation);
+        $this->conversationService->updateLastMessageAt($conversation);
+        $this->conversationService->refreshWindowStatus($conversation);
+
+        if ($automatizacion === null) {
+            return;
+        }
+
+        $automatizacion->increment('hits');
+
+        $respuesta = $automatizacion->respuesta();
+
+        // handoff, o una plantilla borrada/desactivada: no se responde nada y
+        // el ticket queda en la bandeja para que lo tome un agente. Es
+        // deliberado -- mejor silencio que un mensaje vacio.
+        if ($respuesta === null || trim($respuesta) === '') {
+            Log::info('[Instagram] Boton sin respuesta automatica; queda para un agente', [
+                'payload'       => $payload,
+                'response_type' => $automatizacion->response_type,
+            ]);
+
+            return;
+        }
+
+        // Se encola por el servicio comun para que el mensaje quede persistido
+        // como 'pending' y visible en el chat aunque la cola este caida.
+        $this->outbound->queueTextMessage($conversation, $respuesta);
     }
 
     /**
