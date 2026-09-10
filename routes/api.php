@@ -148,6 +148,13 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('/conversations/{conversation}/templates', [TemplateController::class, 'forConversation'])
         ->name('api.conversations.templates');
 
+    // Las marcadas de acceso rápido, que el chat pinta como botones sobre la
+    // barra de escritura. Endpoint aparte del de arriba y no un filtro suyo:
+    // el chat pide las dos listas al abrir una conversación y son de tamaño
+    // muy distinto — ocho botones contra el catálogo completo.
+    Route::get('/conversations/{conversation}/quick-replies', [TemplateController::class, 'quickRepliesForConversation'])
+        ->name('api.conversations.quick-replies');
+
     /*
     |-------------------------------------------------------------------------
     | Automatizaciones de Instagram (Ice Breakers y Persistent Menu)
@@ -201,6 +208,29 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     |-------------------------------------------------------------------------
     */
     Route::get('/tags', [TagController::class, 'index'])->name('api.tags.index');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Estados de Venezuela
+    |
+    | Catálogo para los desplegables de la ficha del cliente, el panel del
+    | chat y los filtros. Es la contraparte de los PATCH que aceptan `state`:
+    | sin este endpoint el frontend tendría su propia copia de los 24 slugs, y
+    | una copia duplicada es una copia que se desincroniza (ya pasó con las
+    | etiquetas de estado de ticket).
+    |
+    | Solo lectura: la división político-territorial no la edita el negocio.
+    | Vive en App\Models\Contact::stateLabels().
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/states', fn () => response()->json(
+        collect(\App\Models\Contact::stateLabels())
+            ->map(fn (string $label, string $slug): array => [
+                'value' => $slug,
+                'label' => $label,
+            ])
+            ->values()
+    ))->name('api.states.index');
 
     /*
     |-------------------------------------------------------------------------

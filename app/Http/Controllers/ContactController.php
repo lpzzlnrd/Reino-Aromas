@@ -34,6 +34,10 @@ class ContactController extends MetaBaseController
                 $request->filled('city'),
                 fn ($q) => $q->where('city', $request->query('city')),
             )
+            ->when(
+                $request->filled('state'),
+                fn ($q) => $q->where('state', $request->query('state')),
+            )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = (string) $request->query('search');
 
@@ -101,6 +105,9 @@ class ContactController extends MetaBaseController
                 'nullable',
                 Rule::in(['caracas', 'valencia', 'barquisimeto', 'maracay', 'margarita']),
             ],
+            // Estado del pais. Es un corte distinto de la sede: el agente lo
+            // llena a mano porque el webhook de Meta no trae ubicacion.
+            'state'            => ['sometimes', 'nullable', Rule::in(Contact::states())],
             'phone'            => ['sometimes', 'nullable', 'string', 'max:32'],
             'instagram_handle' => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
@@ -122,6 +129,11 @@ class ContactController extends MetaBaseController
             'channel'             => $contact->channel,
             'channel_id'          => $contact->channel_id,
             'city'                => $contact->city,
+            'state'               => $contact->state,
+            // La etiqueta va servida y no derivada en el front: el mapa de
+            // slugs a nombres con acentos vive en Contact::stateLabels() y
+            // duplicarlo en TypeScript garantiza que se desincronicen.
+            'state_label'         => Contact::stateLabel($contact->state),
             'phone'               => $contact->phone,
             'instagram_handle'    => $contact->instagram_handle,
             'first_seen_at'       => $contact->first_seen_at?->toIso8601String(),

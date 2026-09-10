@@ -89,6 +89,7 @@ class Ticket extends Model
         'status',
         'priority',
         'city',
+        'state',
         'course_interest',
         'notes',
         'reserved_at',

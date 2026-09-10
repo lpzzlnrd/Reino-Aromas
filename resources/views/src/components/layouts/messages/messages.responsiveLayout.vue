@@ -163,10 +163,20 @@
 </script>
 
 <template>
-    <!-- Contenedor flex propio: el <main> padre no es flex, así que sin este
-         wrapper el panel de chats y el chat se apilaban verticalmente en vez
-         de quedar lado a lado. -->
-    <div class="flex h-full min-h-screen w-full">
+    <!-- Contenedor flex propio para dejar el panel de chats y el chat lado a
+         lado.
+
+         La altura es FIJA y no `min-h-screen`: con un minimo, el contenedor
+         crecia con la lista de mensajes y el `overflow-y-auto` de mas abajo
+         nunca tenia contra que scrollear, asi que la conversacion estiraba la
+         pagina y la barra de escritura terminaba muy por debajo del pliegue.
+         Con `h-*` el alto es un tope y el scroll vuelve a ser interno.
+
+         `h-full` se resuelve contra el <main> del layout, que SI tiene alto real
+         (es `flex-1` de un contenedor `h-dvh`), asi que la bandeja ocupa
+         exactamente el hueco que queda bajo el header movil sin restar pixeles a
+         mano. Un `100dvh` propio se habria pasado justo el alto de ese header. -->
+    <div class="flex w-full h-full min-h-0 overflow-hidden">
 
     <!-- Panel lateral de chats.
 
@@ -176,13 +186,13 @@
          bandeja quedaba en blanco: no habia forma de elegir una conversacion. -->
     <div
         :class="[
-            'md:flex md:w-72 md:flex-none shrink-0 flex-col border-r border-primary/10 bg-surface/60',
+            'md:flex md:w-72 md:flex-none shrink-0 min-h-0 flex-col border-r border-primary/10 bg-surface/60',
             selectedId === null ? 'flex w-full' : 'hidden',
         ]"
     >
 
         <!-- Buscador y filtros -->
-        <div class="p-3 border-b border-primary/8 flex flex-col gap-2">
+        <div class="p-3 border-b border-primary/8 flex flex-col gap-2 shrink-0">
             <label class="input-group group cursor-text">
                 <Search class="text-primary/40 group-focus-within:text-primary/70 shrink-0 transition-colors" />
                 <!-- id propio: header.vue ya usa "search-bar" y los dos se
@@ -317,8 +327,10 @@
             </p>
         </div>
 
-        <!-- Lista de chats -->
-        <div class="flex-1 overflow-y-auto">
+        <!-- Lista de chats. `min-h-0` para que el `overflow-y-auto` tenga efecto:
+             un item de flex no se encoge por debajo de su contenido sin el, asi
+             que la lista larga estiraba el panel en lugar de scrollear. -->
+        <div class="flex-1 min-h-0 overflow-y-auto">
             <p v-if="loadingChats" class="px-4 py-8 text-center text-sm text-primary/40">
                 Cargando conversaciones...
             </p>
@@ -388,8 +400,12 @@
         </div>
     </div>
 
-    <!-- En movil el chat abierto ocupa todo; sin chat, lo tapa la lista. -->
-    <router-view :class="['flex-1 min-w-0', selectedId === null ? 'hidden md:block' : 'block']" />
+    <!-- En movil el chat abierto ocupa todo; sin chat, lo tapa la lista.
+
+         `min-h-0` junto al `min-w-0`: sin el, esta columna no puede encogerse
+         por debajo de su contenido y la conversacion desbordaba el alto fijo del
+         contenedor en vez de scrollear por dentro. -->
+    <router-view :class="['flex-1 min-w-0 min-h-0', selectedId === null ? 'hidden md:block' : 'block']" />
 
     </div>
 </template>

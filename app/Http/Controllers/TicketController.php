@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateTicketRequest;
+use App\Models\Contact;
 use App\Models\Ticket;
 use App\Services\ActivityLogService;
 use App\Services\TicketService;
@@ -30,7 +31,7 @@ class TicketController extends MetaBaseController
      * GET /api/tickets
      *
      * Listado para el Kanban y la vista de tablero. Filtros por query string:
-     *   status, priority, city, assigned_user_id, mine=1
+     *   status, priority, city, state, assigned_user_id, mine=1
      */
     public function index(Request $request): JsonResponse
     {
@@ -46,6 +47,10 @@ class TicketController extends MetaBaseController
             ->when(
                 $request->filled('city'),
                 fn ($q) => $q->where('city', $request->query('city')),
+            )
+            ->when(
+                $request->filled('state'),
+                fn ($q) => $q->where('state', $request->query('state')),
             )
             ->when(
                 $request->filled('assigned_user_id'),
@@ -143,7 +148,7 @@ class TicketController extends MetaBaseController
             $this->asignar($ticket, $data['assigned_user_id'], $user);
         }
 
-        $directos = array_intersect_key($data, array_flip(['city', 'course_interest', 'notes']));
+        $directos = array_intersect_key($data, array_flip(['city', 'state', 'course_interest', 'notes']));
         if ($directos !== []) {
             $ticket->update($directos);
         }
@@ -219,6 +224,8 @@ class TicketController extends MetaBaseController
             'status_label'    => $ticket->statusLabel(),
             'priority'        => $ticket->priority,
             'city'            => $ticket->city,
+            'state'           => $ticket->state,
+            'state_label'     => Contact::stateLabel($ticket->state),
             'course_interest' => $ticket->course_interest,
             'notes'           => $ticket->notes,
             'reserved_at'     => $ticket->reserved_at?->toIso8601String(),
@@ -230,6 +237,8 @@ class TicketController extends MetaBaseController
                 'profile_picture_url' => $contact->profile_picture_url,
                 'channel'             => $contact->channel,
                 'city'                => $contact->city,
+                'state'               => $contact->state,
+                'state_label'         => Contact::stateLabel($contact->state),
             ] : null,
             'assigned_user'   => $ticket->assignedUser ? [
                 'id'     => $ticket->assignedUser->id,

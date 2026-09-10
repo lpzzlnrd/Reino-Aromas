@@ -31,6 +31,12 @@ class StoreTemplateRequest extends FormRequest
             'channel'   => ['nullable', 'in:whatsapp,instagram,facebook'],
             'category'  => ['nullable', 'string', 'max:60'],
             'is_active' => ['boolean'],
+            // Si se pinta como botón sobre la barra de escritura del chat.
+            'is_quick_reply' => ['boolean'],
+            // Posición del botón en la barra. El tope de 999 es holgado a
+            // propósito: deja hueco para reordenar sin renumerar todo, y la
+            // columna es un unsignedSmallInteger (máximo 65535).
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:999'],
             // Nombre de la plantilla aprobada en Meta. Meta solo admite
             // minúsculas, números y guion bajo.
             'meta_template_name' => ['nullable', 'string', 'max:255', 'regex:/^[a-z0-9_]+$/'],

@@ -34,6 +34,15 @@ class TemplateService
         'agente' => 'Nombre del agente que responde',
     ];
 
+    /**
+     * Cuántos botones de respuesta rápida se sirven al chat como máximo.
+     *
+     * La barra de botones es una fila horizontal sobre el input: pasada esta
+     * cantidad empuja el campo de escritura fuera de la pantalla en móvil. No
+     * se pierde nada — el desplegable con el catálogo completo sigue ahí.
+     */
+    public const MAXIMO_BOTONES = 8;
+
     public function __construct(private readonly ActivityLogService $activityLog) {}
 
     /**
@@ -148,6 +157,42 @@ class TemplateService
 
         // rendered_body es un atributo temporal para la respuesta JSON;
         // no existe como columna.
+        return $templates->each(function (Template $template) use ($valores): void {
+            $template->setAttribute('rendered_body', $this->render($template->body, $valores));
+        });
+    }
+
+    /**
+     * Respuestas rápidas aplicables a una conversación, ya renderizadas.
+     *
+     * Es el subconjunto de disponiblesPara() marcado como de acceso rápido: lo
+     * que el chat pinta como botones sobre la barra de escritura. Aplica los
+     * MISMOS filtros de ciudad y canal — un botón que menciona "responde a
+     * este mensaje" no debe salir en un chat de Instagram, igual que no sale
+     * en el desplegable.
+     *
+     * Se limita a MAXIMO_BOTONES porque la barra es una fila horizontal: con
+     * veinte botones el input queda empujado fuera de la pantalla en móvil, y
+     * el agente que necesita el vigésimo texto lo encuentra en el desplegable
+     * completo, que sigue estando.
+     *
+     * @return Collection<int, Template>
+     */
+    public function respuestasRapidasPara(?Contact $contact, ?Ticket $ticket = null, ?string $agente = null): Collection
+    {
+        $ciudad = $ticket?->city ?? $contact?->city;
+        $canal  = $contact?->channel;
+
+        $templates = Template::query()
+            ->active()
+            ->quickReplies()
+            ->forCity($ciudad)
+            ->forChannel($canal)
+            ->limit(self::MAXIMO_BOTONES)
+            ->get();
+
+        $valores = $this->valoresPara($contact, $ticket, $agente);
+
         return $templates->each(function (Template $template) use ($valores): void {
             $template->setAttribute('rendered_body', $this->render($template->body, $valores));
         });

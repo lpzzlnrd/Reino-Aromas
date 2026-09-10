@@ -80,6 +80,10 @@ export type ChatContact = {
     channel: Channel
     channel_id: string
     city: string | null
+    /** Slug del estado del pais (ej: 'zulia'). Lo llena el agente a mano. */
+    state: string | null
+    /** Nombre legible que ya sirve el backend; no se deriva en el front. */
+    state_label: string | null
     phone: string | null
     instagram_handle: string | null
     first_seen_at: string | null
@@ -97,6 +101,8 @@ export type ChatTicket = {
     status_label: CaseStatus
     priority: TicketPriority
     city: string | null
+    state: string | null
+    state_label: string | null
     course_interest: string | null
     notes: string | null
     assigned_user: MessageSender | null
@@ -137,6 +143,16 @@ export type InboxFilters = {
 const chats = ref<ChatSummary[]>([])
 const detail = ref<ChatDetail | null>(null)
 const templates = ref<ChatTemplate[]>([])
+
+/**
+ * Las plantillas marcadas de acceso rápido, que se pintan como botones sobre
+ * la barra de escritura.
+ *
+ * Van en su propio ref y no filtrando `templates` en cliente porque el backend
+ * ya aplica el tope de ocho y el orden del negocio (`sort_order`): replicar ese
+ * criterio en el front sería una segunda fuente de verdad para el mismo dato.
+ */
+const quickReplies = ref<ChatTemplate[]>([])
 
 const loadingChats = ref(false)
 const loadingDetail = ref(false)
@@ -276,6 +292,7 @@ export function useInbox() {
         // otro contacto mientras carga la nueva.
         detail.value = null
         templates.value = []
+        quickReplies.value = []
 
         try {
             const { data } = await api.get<ChatDetail>(`/meta/conversations/${id}`)
@@ -297,14 +314,17 @@ export function useInbox() {
         }
 
         // Las plantillas son secundarias y van aparte: si fallan, el agente
-        // igual puede escribir a mano.
+        // igual puede escribir a mano. Las dos listas se piden en paralelo
+        // porque no dependen entre sí.
         void loadTemplates(id)
+        void loadQuickReplies(id)
     }
 
     const closeChat = () => {
         selectedId.value = null
         detail.value = null
         templates.value = []
+        quickReplies.value = []
     }
 
     const loadTemplates = async (id: number) => {
@@ -326,6 +346,34 @@ export function useInbox() {
             // afirma un hecho de negocio falso y deja al agente sin saber que
             // puede reintentar.
             templatesError.value = 'No se pudieron cargar las plantillas. Reintenta.'
+        }
+    }
+
+    /**
+     * Carga los botones de respuesta rápida de una conversación.
+     *
+     * Un fallo aquí se traga a propósito y NO se refleja en templatesError: la
+     * barra de botones es un atajo, y si no carga el agente tiene el
+     * desplegable completo y el campo de texto. Pintar un error rojo por un
+     * atajo que falla sería alarmar por algo que no bloquea nada.
+     *
+     * El desplegable SÍ avisa cuando falla, porque fuera de la ventana de 24h
+     * las plantillas son el único envío posible.
+     */
+    const loadQuickReplies = async (id: number) => {
+        try {
+            const { data } = await api.get<ChatTemplate[]>(`/conversations/${id}/quick-replies`)
+
+            // Igual que en loadTemplates: si el agente ya cambió de chat, esta
+            // respuesta es de otra conversación y pintaría botones con el
+            // nombre del contacto equivocado.
+            if (selectedId.value !== id) return
+
+            quickReplies.value = data ?? []
+        } catch {
+            if (selectedId.value !== id) return
+
+            quickReplies.value = []
         }
     }
 
@@ -448,7 +496,7 @@ export function useInbox() {
      * aceptaba desde el principio y no había forma de mandarlo.
      */
     const updateTicket = async (
-        payload: Partial<Pick<ChatTicket, 'status' | 'priority' | 'notes' | 'city' | 'course_interest'>>
+        payload: Partial<Pick<ChatTicket, 'status' | 'priority' | 'notes' | 'city' | 'state' | 'course_interest'>>
             & { assigned_user_id?: number | null },
     ): Promise<boolean> => {
         const ticket = detail.value?.ticket
@@ -477,6 +525,47 @@ export function useInbox() {
             // de red mostraban el mismo texto genérico.
             detailError.value =
                 e?.response?.data?.message ?? 'No se pudo actualizar el ticket'
+
+            return false
+        }
+    }
+
+    /**
+     * Actualiza la ficha del contacto desde el panel del chat.
+     *
+     * Va contra PATCH /api/contacts/{id}, no contra el ticket: el estado del
+     * pais y el telefono son del cliente, no del caso. Un cliente que escribe
+     * tres veces tiene tres tickets y un solo estado — guardarlo en el ticket
+     * obligaria a repetirlo en cada caso nuevo.
+     *
+     * El ticket TAMBIEN tiene una columna `state`, pero es una copia
+     * historica que se llena al crearlo: sirve para que el reporte no necesite
+     * un JOIN y para conservar de donde venia el cliente. No se edita desde
+     * aqui.
+     */
+    const updateContact = async (
+        payload: Partial<Pick<ChatContact, 'display_name' | 'city' | 'state' | 'phone' | 'instagram_handle'>>,
+    ): Promise<boolean> => {
+        const contacto = detail.value?.contact
+        if (!contacto) return false
+
+        const conversationId = detail.value?.id
+
+        try {
+            const { data } = await api.patch(`/contacts/${contacto.id}`, payload)
+            const actualizado = data.contact
+
+            // Solo se aplica si el agente sigue en el mismo chat: con una red
+            // lenta, cambiar de conversacion mientras el PATCH viaja pintaba
+            // el dato en la ficha del contacto equivocado.
+            if (actualizado && detail.value?.contact && detail.value?.id === conversationId) {
+                detail.value.contact = { ...detail.value.contact, ...actualizado }
+            }
+
+            return true
+        } catch (e: any) {
+            detailError.value =
+                e?.response?.data?.message ?? 'No se pudo actualizar el contacto'
 
             return false
         }
@@ -699,6 +788,7 @@ export function useInbox() {
         chats,
         detail,
         templates,
+        quickReplies,
         filters,
         selectedId,
         selectedChat,
@@ -717,9 +807,11 @@ export function useInbox() {
         closeChat,
         sendMessage,
         sendTemplate,
+        loadQuickReplies,
         retryMessage,
         setConversationStatus,
         updateTicket,
+        updateContact,
         clearFilters,
         onMessageCreated,
         onMessageStatus,

@@ -26,6 +26,7 @@
     const {
         byStatus,
         byCity,
+        byState,
         byChannel,
         byPriority,
         byCourse,
@@ -105,6 +106,29 @@
 
     const cursoTop = computed(() => byCourse.value[0] ?? null)
 
+    /*
+     * Estados con clientes, separados de la fila de pendientes.
+     *
+     * El backend devuelve "sin determinar" como una fila más (state: null)
+     * porque es el número que importa al principio; en el reporte va al pie y
+     * no en el ranking, si no competiría por el primer puesto y taparía a los
+     * estados reales.
+     */
+    const estadosConClientes = computed(() => byState.value.filter((s) => s.state !== null))
+
+    const estadoSinDeterminar = computed(() => byState.value.find((s) => s.state === null) ?? null)
+
+    /** El estado que más clientes trajo en el periodo. */
+    const estadoTop = computed(() => estadosConClientes.value[0] ?? null)
+
+    /**
+     * Cuántos estados distintos tienen al menos un cliente.
+     *
+     * Es la medida de alcance territorial: 3 de 24 dice algo muy distinto que
+     * 18 de 24 con el mismo total de clientes.
+     */
+    const alcanceTerritorial = computed(() => estadosConClientes.value.length)
+
     /** Ninguna consulta devolvió nada: el periodo está vacío de verdad. */
     const sinDatos = computed(
         () => !loading.value && totals.value.tickets === 0 && totals.value.contacts === 0,
@@ -159,6 +183,19 @@
 
     // El degradado va por posición: el curso más pedido siempre lleva el color
     // principal, sin importar cuál sea.
+    // Mismo criterio que los cursos: el degradado va por posición, así el
+    // estado con más clientes lleva siempre el color principal.
+    const stateColors = [
+        'from-primary to-secondary',
+        'from-secondary to-accent-hover',
+        'from-accent-hover to-pink-400',
+        'from-pink-400 to-fuchsia-400',
+        'from-fuchsia-400 to-violet-400',
+        'from-violet-400 to-indigo-400',
+        'from-indigo-400 to-sky-400',
+        'from-sky-400 to-cyan-400',
+    ]
+
     const courseColors = [
         'from-primary to-secondary',
         'from-secondary to-accent-hover',
@@ -484,6 +521,82 @@
                         </p>
                     </div>
                 </div>
+            </div>
+
+            <!-- Por estado del país -->
+            <div class="glass-card p-6 flex flex-col gap-5 mb-6">
+                <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <div>
+                        <h2 class="text-xl font-primary text-primary">Por estado</h2>
+                        <!-- Se explica la diferencia con "Por sede" aquí mismo:
+                             los dos bloques se leen seguidos y sin esto parecen
+                             el mismo dato contado dos veces. -->
+                        <p class="text-[11px] text-primary/40 mt-0.5 leading-relaxed">
+                            De dónde escriben los clientes. La sede es dónde toman el curso.
+                        </p>
+                    </div>
+                    <span class="text-[10px] font-bold text-secondary uppercase tracking-widest opacity-70 shrink-0">
+                        {{ alcanceTerritorial }} de 24 estados
+                    </span>
+                </header>
+
+                <div v-if="loading" class="flex flex-col gap-4">
+                    <div v-for="n in 5" :key="n" class="flex flex-col gap-1.5">
+                        <div class="h-4 w-32 bg-primary/8 rounded animate-pulse"></div>
+                        <div class="w-full bg-primary/8 rounded-full h-2.5 animate-pulse"></div>
+                    </div>
+                </div>
+
+                <!-- Nadie clasificado todavía -->
+                <div
+                    v-else-if="estadosConClientes.length === 0"
+                    class="flex flex-col items-center justify-center text-center gap-1.5 py-8"
+                >
+                    <p class="text-sm text-primary/40">
+                        Ningún cliente del periodo tiene estado asignado.
+                    </p>
+                    <p class="text-[11px] text-primary/35 max-w-sm leading-relaxed">
+                        El estado se llena a mano en el panel del chat o en la ficha del cliente:
+                        ningún webhook de Meta trae la ubicación del contacto.
+                    </p>
+                </div>
+
+                <template v-else>
+                    <div class="flex flex-col gap-4">
+                        <div v-for="(e, i) in estadosConClientes" :key="e.state ?? 'sin'" class="flex flex-col gap-1.5">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm font-semibold text-primary/80 truncate">{{ e.label }}</span>
+                                <span class="text-xs font-bold text-primary/50 tabular-nums shrink-0">
+                                    {{ e.clients }} · {{ e.percentage.toFixed(1) }}%
+                                    <span v-if="e.tickets > 0" class="font-normal text-primary/35">
+                                        · {{ e.tickets }} {{ e.tickets === 1 ? 'ticket' : 'tickets' }}
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="w-full bg-primary/8 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                    :class="`h-full bg-gradient-to-r ${stateColors[i % stateColors.length]} rounded-full transition-all duration-500`"
+                                    :style="{ width: `${e.percentage}%` }"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Los pendientes al pie: es trabajo por hacer, no un dato
+                         del negocio, y en el ranking taparía a los estados
+                         reales justo cuando son lo que se quiere ver. -->
+                    <div class="flex flex-col gap-1 pt-3 border-t border-primary/8">
+                        <p v-if="estadoSinDeterminar" class="text-[11px] text-primary/45 leading-relaxed">
+                            <span class="font-semibold">{{ estadoSinDeterminar.clients }}</span>
+                            {{ estadoSinDeterminar.clients === 1 ? 'cliente' : 'clientes' }}
+                            sin estado ({{ estadoSinDeterminar.percentage.toFixed(1) }}%).
+                            Mientras no se clasifiquen, estos porcentajes se leen sobre el total, no sobre lo clasificado.
+                        </p>
+                        <p v-if="estadoTop" class="text-[11px] text-primary/40 leading-relaxed">
+                            {{ estadoTop.label }} concentra el {{ estadoTop.percentage.toFixed(0) }}% de los clientes del periodo.
+                        </p>
+                    </div>
+                </template>
             </div>
 
             <!-- Actividad del periodo -->

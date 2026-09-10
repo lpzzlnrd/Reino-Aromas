@@ -27,6 +27,8 @@ class Template extends Model
         'schedule',
         'meta_template_name',
         'is_active',
+        'is_quick_reply',
+        'sort_order',
     ];
 
     /**
@@ -36,6 +38,8 @@ class Template extends Model
     {
         return [
             'is_active'    => 'boolean',
+            'is_quick_reply' => 'boolean',
+            'sort_order'   => 'integer',
             'usage_count'  => 'integer',
             'last_used_at' => 'datetime',
             'price'        => 'decimal:2',
@@ -69,6 +73,25 @@ class Template extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Las que se pintan como botones sobre la barra de escritura del chat.
+     *
+     * El orden lo pone el negocio con `sort_order` y NO el contador de uso: la
+     * barra sigue el guion de atención (saludar, precios, horarios, despedir),
+     * así que el saludo va primero aunque los precios se manden más veces.
+     * `name` desempata para que dos con el mismo orden no bailen entre cargas.
+     *
+     * @param Builder<Template> $query
+     * @return Builder<Template>
+     */
+    public function scopeQuickReplies(Builder $query): Builder
+    {
+        return $query
+            ->where('is_quick_reply', true)
+            ->orderBy('sort_order')
+            ->orderBy('name');
     }
 
     /**

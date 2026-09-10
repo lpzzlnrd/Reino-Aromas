@@ -1,6 +1,7 @@
 <script setup lang="ts">
     import { ref, computed, watch, onMounted } from 'vue'
     import { useInbox, type TicketPriority, type TicketStatus } from '@/hooks/useInbox'
+    import { useStates } from '@/hooks/useStates'
     import { useAssignableUsers } from '@/hooks/useAssignableUsers'
     import { useAuth } from '@/composables/useAuth'
     import { CaseStatus } from '@/hooks/caseStatus'
@@ -9,6 +10,7 @@
     import Calendar from '../../icons/icon.calendar.vue'
     import Phone from '../../icons/icon.phone.vue'
     import At from '../../icons/icon.at.vue'
+    import Location from '../../icons/icon.location.vue'
 
     /**
      * Panel lateral del chat: contacto, ticket, notas y etiquetas.
@@ -18,7 +20,7 @@
      * que mostraban lo mismo para cualquier contacto que abrieras.
      */
 
-    const { detail, updateTicket } = useInbox()
+    const { detail, updateTicket, updateContact } = useInbox()
 
     const ESTADOS: { valor: TicketStatus; etiqueta: CaseStatus }[] = [
         { valor: 'nuevo',          etiqueta: CaseStatus.New },
@@ -132,6 +134,39 @@
         if (!ok) revertirSelect(event, previo)
     }
 
+    /* ── Estado del país ─────────────────────────────────────────────── */
+
+    /*
+     * De qué estado escribe el cliente. Es dato del CONTACTO, no del ticket:
+     * un cliente que escribe tres veces tiene tres tickets y un solo estado.
+     *
+     * El desplegable existe porque ningún webhook de Meta trae ubicación —
+     * WhatsApp da el número y el prefijo venezolano es el mismo para todo el
+     * país, e Instagram y Messenger no dan nada. El único que puede saberlo
+     * es el agente que está conversando, y este es el momento en que lo sabe.
+     */
+    const { estados, error: errorEstados, loadStates } = useStates()
+
+    const guardandoEstado = ref(false)
+
+    const changeState = async (event: Event): Promise<void> => {
+        const previo = contact.value?.state ?? ''
+        const valor = (event.target as HTMLSelectElement).value
+
+        guardandoEstado.value = true
+
+        try {
+            const ok = await updateContact({ state: valor === '' ? null : valor })
+
+            // Misma defensa que en los otros <select> del panel: el DOM ya
+            // muestra lo elegido y el binding no cambió, así que Vue no
+            // re-renderiza y el desplegable se queda mintiendo.
+            if (!ok) revertirSelect(event, previo)
+        } finally {
+            guardandoEstado.value = false
+        }
+    }
+
     /* ── Asignación de agentes ───────────────────────────────────────────── */
 
     const { activos: agentes, error: errorAgentes, loadUsers } = useAssignableUsers()
@@ -172,9 +207,13 @@
         void asignar(usuarioActual.value.id)
     }
 
-    // La lista de agentes se pide al montar: el selector tiene que estar
-    // poblado antes de que el agente lo abra, no al primer clic.
-    onMounted(() => void loadUsers())
+    // Se piden al montar: los dos selectores tienen que estar poblados antes
+    // de que el agente los abra, no al primer clic. Los dos hooks cachean, así
+    // que abrir diez chats no son veinte requests.
+    onMounted(() => {
+        void loadUsers()
+        void loadStates()
+    })
 
     const channelLabel = computed(() => {
         const canal = contact.value?.channel
@@ -243,6 +282,34 @@
                     <Calendar class="text-secondary shrink-0"/>
                     {{ clientSince }}
                 </p>
+
+                <!-- Estado del país. Es dato del contacto y no del ticket: el
+                     cliente vive en un solo estado aunque abra diez casos.
+                     Ningún webhook de Meta trae ubicación, así que el único que
+                     puede llenarlo es el agente que está conversando. -->
+                <label class="flex flex-col gap-1 mt-1">
+                    <span class="flex items-center gap-2 text-xs font-semibold text-primary/50">
+                        <Location class="text-secondary shrink-0" aria-hidden="true"/>
+                        Estado
+                    </span>
+                    <select
+                        :value="contact.state ?? ''"
+                        @change="changeState"
+                        :disabled="guardandoEstado"
+                        aria-label="Estado del país del cliente"
+                        class="input-group text-xs py-1.5 px-2 w-full cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                    >
+                        <option value="">Sin determinar</option>
+                        <option v-for="e in estados" :key="e.value" :value="e.value">
+                            {{ e.label }}
+                        </option>
+                    </select>
+                    <!-- El desplegable vacío sin explicación se lee como "este
+                         CRM no tiene estados", que es falso. -->
+                    <span v-if="errorEstados" role="alert" class="text-[11px] text-red-600 leading-relaxed">
+                        {{ errorEstados }}
+                    </span>
+                </label>
             </div>
 
             <!-- Datos del ticket -->

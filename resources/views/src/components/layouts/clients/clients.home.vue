@@ -12,6 +12,7 @@
     import Facebook from '../../icons/social/icon.facebook.vue'
     import api from '@/lib/axios'
     import { useModal } from '@/composables/useModal'
+    import { useStates } from '@/hooks/useStates'
 
     /**
      * Clientes del CRM.
@@ -32,6 +33,10 @@
         channel: Canal
         channel_id: string
         city: Ciudad | null
+        /** Slug del estado del país. NULL mientras el agente no lo determine. */
+        state: string | null
+        /** Nombre con acentos que ya sirve el backend. */
+        state_label: string | null
         phone: string | null
         instagram_handle: string | null
         first_seen_at: string | null
@@ -73,6 +78,7 @@
     const searchQuery = ref('')
     const filterChannel = ref<Canal | ''>('')
     const filterCity = ref<Ciudad | ''>('')
+    const filterState = ref<string>('')
 
     const currentPage = ref(1)
     const lastPage = ref(1)
@@ -85,11 +91,16 @@
     // Edición inline dentro del panel
     const editing = ref(false)
     const saving = ref(false)
-    const editForm = ref<{ display_name: string; city: Ciudad | ''; phone: string }>({
+    const editForm = ref<{ display_name: string; city: Ciudad | ''; state: string; phone: string }>({
         display_name: '',
         city: '',
+        state: '',
         phone: '',
     })
+
+    // Los 24 estados salen de GET /api/states y no de una constante local: la
+    // misma lista la usa la validación del PATCH, y dos copias se desincronizan.
+    const { estados, error: errorEstados, loadStates } = useStates()
 
     let searchTimer: number | undefined
 
@@ -105,6 +116,7 @@
                     search: searchQuery.value || undefined,
                     channel: filterChannel.value || undefined,
                     city: filterCity.value || undefined,
+                    state: filterState.value || undefined,
                 },
             })
 
@@ -126,7 +138,7 @@
         searchTimer = window.setTimeout(() => fetchContacts(1), 350)
     })
 
-    watch([filterChannel, filterCity], () => fetchContacts(1))
+    watch([filterChannel, filterCity, filterState], () => fetchContacts(1))
 
     const openDetail = async (contact: Contact) => {
         loadingDetail.value = true
@@ -165,6 +177,7 @@
         editForm.value = {
             display_name: selected.value.display_name ?? '',
             city: selected.value.city ?? '',
+            state: selected.value.state ?? '',
             phone: selected.value.phone ?? '',
         }
         editing.value = true
@@ -181,6 +194,9 @@
                 // Cadena vacía → null: el backend valida contra el enum de
                 // ciudades y '' no es un valor válido.
                 city: editForm.value.city || null,
+                // Igual que la ciudad: '' no pasa la validación contra el
+                // catálogo de estados, hay que mandar null.
+                state: editForm.value.state || null,
                 phone: editForm.value.phone || null,
             })
 
@@ -217,6 +233,20 @@
     const cityLabel = (ciudad: Ciudad | null): string =>
         CIUDADES.find((c) => c.valor === ciudad)?.etiqueta ?? 'Sin ciudad'
 
+    /**
+     * Nombre del estado para la tabla y la ficha.
+     *
+     * Prefiere el `state_label` que sirve el backend y solo busca en el
+     * catálogo como respaldo: así una fila recién editada muestra el nombre
+     * correcto aunque el catálogo todavía no haya terminado de cargar.
+     */
+    const stateLabel = (c: { state: string | null; state_label?: string | null }): string => {
+        if (c.state_label) return c.state_label
+        if (!c.state) return 'Sin determinar'
+
+        return estados.value.find((e) => e.value === c.state)?.label ?? c.state
+    }
+
     const initials = (name: string | null): string => {
         if (!name) return '?'
         return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -240,17 +270,24 @@
     }
 
     const hasFilters = computed(() =>
-        searchQuery.value !== '' || filterChannel.value !== '' || filterCity.value !== '',
+        searchQuery.value !== ''
+        || filterChannel.value !== ''
+        || filterCity.value !== ''
+        || filterState.value !== '',
     )
 
     const clearFilters = () => {
         searchQuery.value = ''
         filterChannel.value = ''
         filterCity.value = ''
+        filterState.value = ''
         fetchContacts(1)
     }
 
-    onMounted(() => fetchContacts(1))
+    onMounted(() => {
+        void fetchContacts(1)
+        void loadStates()
+    })
 </script>
 
 <template>
@@ -289,6 +326,11 @@
                 <option v-for="c in CIUDADES" :key="c.valor" :value="c.valor">{{ c.etiqueta }}</option>
             </select>
 
+            <select v-model="filterState" class="input-group text-sm py-2.5 px-3 cursor-pointer" aria-label="Filtrar por estado">
+                <option value="">Todos los estados</option>
+                <option v-for="e in estados" :key="e.value" :value="e.value">{{ e.label }}</option>
+            </select>
+
             <button
                 v-if="hasFilters"
                 @click="clearFilters"
@@ -311,17 +353,18 @@
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-primary/40 uppercase tracking-widest">Cliente</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-primary/40 uppercase tracking-widest hidden sm:table-cell">Canal</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-primary/40 uppercase tracking-widest hidden md:table-cell">Ciudad</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-bold text-primary/40 uppercase tracking-widest hidden lg:table-cell">Estado</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-primary/40 uppercase tracking-widest hidden lg:table-cell">Último contacto</th>
                             <th class="px-5 py-3.5 text-right text-[11px] font-bold text-primary/40 uppercase tracking-widest">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="loading">
-                            <td colspan="5" class="px-5 py-12 text-center text-sm text-primary/40">Cargando...</td>
+                            <td colspan="6" class="px-5 py-12 text-center text-sm text-primary/40">Cargando...</td>
                         </tr>
 
                         <tr v-else-if="contacts.length === 0">
-                            <td colspan="5" class="px-5 py-12 text-center">
+                            <td colspan="6" class="px-5 py-12 text-center">
                                 <p class="text-sm text-primary/40">
                                     {{ hasFilters ? 'Ningún cliente coincide con los filtros.' : 'Todavía no hay clientes registrados.' }}
                                 </p>
@@ -377,6 +420,14 @@
                             <!-- Ciudad -->
                             <td class="px-5 py-4 hidden md:table-cell">
                                 <span class="text-xs text-primary/60 capitalize">{{ cityLabel(c.city) }}</span>
+                            </td>
+
+                            <!-- Estado del país. Los sin determinar se pintan
+                                 más tenues: es trabajo pendiente, no un dato. -->
+                            <td class="px-5 py-4 hidden lg:table-cell">
+                                <span class="text-xs" :class="c.state ? 'text-primary/60' : 'text-primary/30 italic'">
+                                    {{ stateLabel(c) }}
+                                </span>
                             </td>
 
                             <!-- Último contacto -->
@@ -491,6 +542,11 @@
                                 <span class="capitalize">{{ cityLabel(selected.city) }}</span>
                             </div>
 
+                            <div class="flex items-center gap-2.5 text-sm" :class="selected.state ? 'text-primary/70' : 'text-primary/35'">
+                                <Location class="text-primary/40 shrink-0" />
+                                <span>{{ stateLabel(selected) }}</span>
+                            </div>
+
                             <div v-if="selected.phone" class="flex items-center gap-2.5 text-sm text-primary/70">
                                 <Phone class="text-primary/40 shrink-0" />
                                 <span>{{ selected.phone }}</span>
@@ -522,6 +578,17 @@
                                     <option value="">Sin ciudad</option>
                                     <option v-for="c in CIUDADES" :key="c.valor" :value="c.valor">{{ c.etiqueta }}</option>
                                 </select>
+                            </label>
+
+                            <label class="flex flex-col gap-1">
+                                <span class="text-[11px] font-semibold text-primary/60">Estado</span>
+                                <select v-model="editForm.state" class="input-group text-sm py-2 px-3 w-full cursor-pointer">
+                                    <option value="">Sin determinar</option>
+                                    <option v-for="e in estados" :key="e.value" :value="e.value">{{ e.label }}</option>
+                                </select>
+                                <span v-if="errorEstados" role="alert" class="text-[11px] text-red-600 leading-relaxed">
+                                    {{ errorEstados }}
+                                </span>
                             </label>
 
                             <label class="flex flex-col gap-1">
