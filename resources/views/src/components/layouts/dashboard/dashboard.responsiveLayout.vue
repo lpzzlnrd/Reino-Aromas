@@ -37,11 +37,23 @@
 
 <template>
     <!-- El breakpoint del flex-row debe coincidir con el del sidebar (md), si no
-         entre 768px y 1024px el sidebar se apilaba encima del contenido. -->
-    <div class="min-h-screen mesh-bg flex flex-col md:flex-row font-secondary">
+         entre 768px y 1024px el sidebar se apilaba encima del contenido.
 
-        <!-- Header móvil -->
-        <header class="md:hidden sticky top-0 z-50 flex items-center justify-between px-4 py-3
+         `h-dvh` y no `min-h-screen`: un minimo no es un alto resoluble, asi que
+         los `h-full` de la bandeja caian a `auto` y la conversacion estiraba la
+         pagina en vez de scrollear por dentro -- la barra de escritura terminaba
+         muy por debajo del pliegue. El scroll de las vistas largas se mueve al
+         <main>, que scrollea igual que antes lo hacia la pagina.
+         `dvh` y no `vh`: en el telefono la barra de direcciones se retrae. -->
+    <div class="h-dvh overflow-hidden mesh-bg flex flex-col md:flex-row font-secondary">
+
+        <!-- Header móvil.
+
+             `shrink-0` en vez de `sticky top-0`: el scroll ya no es de la pagina
+             sino del <main>, asi que el sticky no tenia contra que pegarse. Como
+             hermano rigido de un flex column queda fijo arriba y el contenido
+             scrollea debajo, que es el efecto que se buscaba. -->
+        <header class="md:hidden shrink-0 z-50 flex items-center justify-between px-4 py-3
                         bg-surface/80 backdrop-blur-md border-b border-primary/8 shadow-sm">
             <button @click="toggle" aria-label="Abrir menú"
                     class="p-2 rounded-xl bg-accent/30 text-primary hover:bg-accent transition-colors">
@@ -63,7 +75,11 @@
         </header>
 
         <!-- Sidebar desktop -->
-        <aside class="hidden md:flex glass-sidebar h-screen w-60 flex-col sticky top-0 px-3 py-6 shrink-0 z-40">
+        <!-- `h-full overflow-y-auto` en vez de `h-screen sticky top-0`: el raiz
+             ya acota la pagina, y con el scroll mudado al <main> el sticky no
+             tenia contra que pegarse. El scroll propio es para pantallas bajas,
+             donde el menu completo no cabe en el alto disponible. -->
+        <aside class="hidden md:flex glass-sidebar h-full w-60 flex-col overflow-y-auto px-3 py-6 shrink-0 z-40">
 
             <!-- Logo + nombre -->
             <div class="mb-8 px-2 flex flex-col items-center gap-2 text-center">
@@ -105,6 +121,7 @@
             <nav class="flex flex-col gap-0.5 mt-auto pt-4 border-t border-primary/8">
                 <p class="px-3 text-[10px] font-bold text-primary/40 uppercase tracking-widest mb-2">Sistema</p>
                 <button class="nav-item" @click="goTo('Templates')"><Comments /><span>Plantillas</span></button>
+                <button class="nav-item" @click="goTo('Instagram Automations')"><Comments /><span>Automatizar IG</span></button>
                 <button class="nav-item" @click="goTo('Users')"><Users /><span>Administradores</span></button>
                 <button class="nav-item" @click="goTo('Accounts')"><User /><span>Mi Perfil</span></button>
                 <button class="nav-item" @click="goTo('Accounts')"><Gear /><span>Ajustes</span></button>
@@ -151,6 +168,7 @@
                         <button @click="goTo('Clients')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Users /><span>Clientes</span></button>
                         <button @click="goTo('Reports')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Chart /><span>Reportes</span></button>
                         <button @click="goTo('Templates')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Comments /><span>Plantillas</span></button>
+                        <button @click="goTo('Instagram Automations')" class="flex items-center gap-3 text-primary/70 font-medium p-3 rounded-xl hover:bg-accent/20 hover:text-primary transition-colors"><Comments /><span>Automatizar IG</span></button>
                     </nav>
                     <footer v-if="user" class="mt-auto border-t border-primary/10 pt-4 flex items-center gap-2 p-2">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-accent-hover flex items-center justify-center text-white text-xs font-bold">
@@ -166,8 +184,16 @@
             </div>
         </transition>
 
-        <!-- Contenido principal -->
-        <main class="flex-1 min-w-0 flex flex-col overflow-x-hidden">
+        <!-- Contenido principal.
+
+             `overflow-y-auto` + `min-h-0`: el scroll de pagina se mudo aqui
+             porque el contenedor raiz ahora tiene alto fijo. Las vistas largas
+             (clientes, reportes) scrollean dentro de este <main>; la bandeja,
+             que se contiene sola, no llega a desbordarlo. -->
+        <main class="flex-1 min-w-0 min-h-0 flex flex-col overflow-x-hidden overflow-y-auto">
+            <!-- Sin clases de alto aqui: cada vista declara el suyo. Las de
+                 flujo normal (dashboard, clientes, reportes) crecen y scrollean
+                 dentro de este <main>; la bandeja se acota sola a `h-full`. -->
             <router-view />
         </main>
     </div>

@@ -23,6 +23,21 @@ export type CityStat = {
     percentage: number
 }
 
+export type StateStat = {
+    /**
+     * Slug del estado, o NULL en la fila agregada de "sin determinar".
+     *
+     * El backend NO devuelve los 24 estados con cero (a diferencia de las
+     * sedes): veintitrés barras vacías para ver dos con datos no informan de
+     * nada. Solo vienen los que tienen clientes, más la fila de pendientes.
+     */
+    state: string | null
+    label: string
+    clients: number
+    tickets: number
+    percentage: number
+}
+
 export type ChannelStat = {
     channel: 'whatsapp' | 'instagram' | 'facebook'
     label: string
@@ -84,6 +99,7 @@ type StatusCounts = Record<string, number>
 
 const byStatus = ref<StatusCounts>({})
 const byCity = ref<CityStat[]>([])
+const byState = ref<StateStat[]>([])
 const byChannel = ref<ChannelStat[]>([])
 const byPriority = ref<PriorityStat[]>([])
 const byCourse = ref<CourseStat[]>([])
@@ -118,6 +134,7 @@ export function useDashboard() {
 
             byStatus.value = data.by_status ?? {}
             byCity.value = data.by_city ?? []
+            byState.value = data.by_state ?? []
             byChannel.value = data.by_channel ?? []
             byPriority.value = data.by_priority ?? []
             byCourse.value = data.by_course ?? []
@@ -144,6 +161,7 @@ export function useDashboard() {
     return {
         byStatus,
         byCity,
+        byState,
         byChannel,
         byPriority,
         byCourse,

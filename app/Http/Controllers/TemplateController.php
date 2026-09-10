@@ -55,6 +55,12 @@ class TemplateController extends Controller
             });
         }
 
+        // Solo las de acceso rápido, para la pestaña de la barra del chat en el
+        // gestor. '1'/'0' y no un booleano: llega como query string.
+        if (($rapidas = $request->query('quick')) !== null && $rapidas !== '') {
+            $query->where('is_quick_reply', $rapidas === '1' || $rapidas === 'true');
+        }
+
         $templates = $query
             ->orderByDesc('is_active')
             ->orderByDesc('usage_count')
@@ -74,6 +80,13 @@ class TemplateController extends Controller
     public function store(StoreTemplateRequest $request): JsonResponse
     {
         $template = Template::create($request->validated());
+
+        // refresh() y no el modelo tal cual: Eloquent devuelve la instancia con
+        // solo los campos que se le pasaron, y los valores por defecto de la
+        // tabla (is_quick_reply, sort_order, usage_count) quedan como null en
+        // memoria aunque en la BD ya sean false/0. Serializar sin esto hace que
+        // el editor reciba null donde espera un booleano.
+        $template->refresh();
 
         $this->activityLog->log(
             causerType: User::class,
@@ -208,6 +221,40 @@ class TemplateController extends Controller
     }
 
     /**
+     * GET /api/conversations/{conversation}/quick-replies
+     *
+     * Las plantillas marcadas de acceso rápido, ya renderizadas con los datos
+     * del contacto. Es lo que alimenta la fila de botones sobre la barra de
+     * escritura del chat.
+     *
+     * Va aparte de forConversation() y no como un filtro suyo porque el chat
+     * pide las dos cosas al abrir una conversación — los botones y el
+     * catálogo del desplegable — y son dos listas de tamaño muy distinto:
+     * mezclarlas obligaría al front a filtrar el catalogo completo en cliente
+     * para pintar ocho botones.
+     */
+    public function quickRepliesForConversation(Request $request, Conversation $conversation): JsonResponse
+    {
+        $conversation->loadMissing(['contact', 'ticket']);
+
+        $templates = $this->templates->respuestasRapidasPara(
+            $conversation->contact,
+            $conversation->ticket,
+            $request->user()?->name,
+        );
+
+        return response()->json(
+            $templates->map(fn (Template $t): array => [
+                'id'            => $t->id,
+                'name'          => $t->name,
+                'category'      => $t->category,
+                'body'          => $t->body,
+                'rendered_body' => $t->getAttribute('rendered_body'),
+            ])
+        );
+    }
+
+    /**
      * POST /api/templates/{template}/use
      *
      * Marca la plantilla como usada. La vista lo llama al insertar el texto en
@@ -237,6 +284,9 @@ class TemplateController extends Controller
             'channel'            => $template->channel,
             'category'           => $template->category,
             'is_active'          => $template->is_active,
+            // Si se pinta como botón en la barra del chat, y en qué posición.
+            'is_quick_reply'     => $template->is_quick_reply,
+            'sort_order'         => $template->sort_order,
             // Datos del curso que consume el endpoint de WhatsApp Flows.
             'price'              => $template->price,
             'deposit'            => $template->deposit,

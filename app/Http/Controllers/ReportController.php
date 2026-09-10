@@ -47,6 +47,7 @@ class ReportController extends MetaBaseController
         return response()->json([
             'by_status'   => $this->conteosPorEstado($desde, $hasta),
             'by_city'     => $this->distribucionPorCiudad($desde, $hasta),
+            'by_state'    => $this->distribucionPorEstado($desde, $hasta),
             'by_channel'  => $this->distribucionPorCanal($desde, $hasta),
             'by_priority' => $this->distribucionPorPrioridad($desde, $hasta),
             'by_course'   => $this->distribucionPorCurso($desde, $hasta),
@@ -236,6 +237,92 @@ class ReportController extends MetaBaseController
 
         // Mayor primero: la sede más activa arriba.
         usort($resultado, fn (array $a, array $b): int => $b['clients'] <=> $a['clients']);
+
+        return $resultado;
+    }
+
+    /**
+     * Distribución por estado del país.
+     *
+     * Es un corte distinto del de sedes, no un reemplazo: `city` dice a qué
+     * sede pertenece el cliente (dónde toma el curso) y `state` de dónde
+     * escribe. Un cliente de Táchira atendido desde Valencia cuenta en la sede
+     * Valencia y en el estado Táchira, y las dos cosas son ciertas.
+     *
+     * A diferencia de las ciudades, aquí NO se devuelven los 24 estados con
+     * cero: dibujar veintitrés barras vacías para ver dos con datos no informa
+     * de nada. Solo se devuelven los que tienen al menos un cliente, más una
+     * fila agregada de "sin determinar" cuando hay contactos sin estado — que
+     * es el número que de verdad importa al principio, porque mide cuánto
+     * queda por clasificar.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function distribucionPorEstado(?CarbonImmutable $desde = null, ?CarbonImmutable $hasta = null): array
+    {
+        $etiquetas = Contact::stateLabels();
+
+        // Igual que en las ciudades: los contactos van por first_seen_at, que
+        // es cuándo entró el cliente al CRM.
+        $contactosPorEstado = $this->enRango(Contact::query(), $desde, $hasta, 'first_seen_at')
+            ->selectRaw('state, COUNT(*) as total')
+            ->whereNotNull('state')
+            ->groupBy('state')
+            ->pluck('total', 'state');
+
+        // Los sin clasificar se cuentan aparte y no leyendo la clave NULL del
+        // pluck de arriba: una clave NULL en una Collection se normaliza a ""
+        // y el valor sería inalcanzable según el driver. Con su propia consulta
+        // el número es inequívoco en MySQL y en SQLite.
+        $contactosSinEstado = $this->enRango(Contact::query(), $desde, $hasta, 'first_seen_at')
+            ->whereNull('state')
+            ->count();
+
+        $ticketsPorEstado = $this->enRango(Ticket::query(), $desde, $hasta)
+            ->selectRaw('state, COUNT(*) as total')
+            ->whereNotNull('state')
+            ->groupBy('state')
+            ->pluck('total', 'state');
+
+        // El total incluye los sin clasificar: si no, los porcentajes sumarían
+        // 100% entre los clasificados y "sin determinar" se leería como si no
+        // existiera.
+        $totalContactos = (int) $contactosPorEstado->sum() + $contactosSinEstado;
+
+        $resultado = [];
+
+        foreach ($contactosPorEstado as $slug => $clientes) {
+            $resultado[] = [
+                'state'      => $slug,
+                // Un slug que no está en el catálogo (dato viejo o escrito a
+                // mano en la BD) se muestra tal cual en vez de desaparecer del
+                // reporte: un total que no cuadra es peor que un nombre feo.
+                'label'      => $etiquetas[$slug] ?? $slug,
+                'clients'    => (int) $clientes,
+                'tickets'    => (int) ($ticketsPorEstado[$slug] ?? 0),
+                'percentage' => $totalContactos > 0
+                    ? round((int) $clientes / $totalContactos * 100, 1)
+                    : 0.0,
+            ];
+        }
+
+        usort($resultado, fn (array $a, array $b): int => $b['clients'] <=> $a['clients']);
+
+        // 'state' => null identifica la fila agregada; el front la pinta
+        // distinta (en gris) porque no es un estado, es trabajo pendiente.
+        if ($contactosSinEstado > 0) {
+            $resultado[] = [
+                'state'      => null,
+                'label'      => 'Sin determinar',
+                'clients'    => $contactosSinEstado,
+                'tickets'    => (int) $this->enRango(Ticket::query(), $desde, $hasta)
+                    ->whereNull('state')
+                    ->count(),
+                'percentage' => $totalContactos > 0
+                    ? round($contactosSinEstado / $totalContactos * 100, 1)
+                    : 0.0,
+            ];
+        }
 
         return $resultado;
     }

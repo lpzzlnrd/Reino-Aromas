@@ -31,12 +31,78 @@ class Contact extends Model
         ];
     }
 
+    /**
+     * División político-territorial de Venezuela: los 23 estados más el
+     * Distrito Capital, con su etiqueta legible.
+     *
+     * Fuente de verdad única para el `state` de contactos y tickets. La columna
+     * es VARCHAR y no ENUM (ver la migración), así que este mapa es lo que
+     * realmente restringe los valores: lo consumen la validación de
+     * ContactController y TicketController, el catálogo que sirve
+     * GET /api/states y la agrupación de ReportController.
+     *
+     * Las Dependencias Federales quedan fuera a propósito: no tienen población
+     * estable que pueda ser cliente y ensuciarían el desplegable.
+     *
+     * @return array<string, string>
+     */
+    public static function stateLabels(): array
+    {
+        return [
+            'amazonas'         => 'Amazonas',
+            'anzoategui'       => 'Anzoátegui',
+            'apure'            => 'Apure',
+            'aragua'           => 'Aragua',
+            'barinas'          => 'Barinas',
+            'bolivar'          => 'Bolívar',
+            'carabobo'         => 'Carabobo',
+            'cojedes'          => 'Cojedes',
+            'delta_amacuro'    => 'Delta Amacuro',
+            'distrito_capital' => 'Distrito Capital',
+            'falcon'           => 'Falcón',
+            'guarico'          => 'Guárico',
+            'la_guaira'        => 'La Guaira',
+            'lara'             => 'Lara',
+            'merida'           => 'Mérida',
+            'miranda'          => 'Miranda',
+            'monagas'          => 'Monagas',
+            'nueva_esparta'    => 'Nueva Esparta',
+            'portuguesa'       => 'Portuguesa',
+            'sucre'            => 'Sucre',
+            'tachira'          => 'Táchira',
+            'trujillo'         => 'Trujillo',
+            'yaracuy'          => 'Yaracuy',
+            'zulia'            => 'Zulia',
+        ];
+    }
+
+    /**
+     * Slugs válidos de estado, para las reglas de validación.
+     *
+     * @return list<string>
+     */
+    public static function states(): array
+    {
+        return array_keys(self::stateLabels());
+    }
+
+    /**
+     * Etiqueta legible de un slug. Devuelve null si no es un estado conocido,
+     * para que la vista pinte "Sin estado" en vez del slug crudo de un dato
+     * viejo o corrupto.
+     */
+    public static function stateLabel(?string $state): ?string
+    {
+        return $state === null ? null : (self::stateLabels()[$state] ?? null);
+    }
+
     protected $fillable = [
         'channel',
         'channel_id',
         'display_name',
         'profile_picture_url',
         'city',
+        'state',
         'phone',
         'instagram_handle',
         'first_seen_at',

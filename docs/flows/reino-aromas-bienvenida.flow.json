@@ -1,0 +1,219 @@
+{
+  "version": "7.1",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "BIENVENIDA": ["CITY_SELECTION"],
+    "CITY_SELECTION": ["COURSE_INFO"],
+    "COURSE_INFO": ["INTEREST_CONFIRMATION"],
+    "INTEREST_CONFIRMATION": []
+  },
+  "screens": [
+    {
+      "id": "BIENVENIDA",
+      "title": "Reino Aromas",
+      "terminal": false,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "¡Hola! Bienvenido a Reino Aromas 🕯️"
+          },
+          {
+            "type": "TextBody",
+            "text": "Somos especialistas en velas artesanales de cera de soja. Damos cursos presenciales donde aprendes a hacerlas desde cero, con todos los materiales incluidos."
+          },
+          {
+            "type": "TextBody",
+            "text": "Cuéntanos en qué ciudad estás y te mostramos las fechas y precios disponibles."
+          },
+          {
+            "type": "Footer",
+            "label": "Ver cursos",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CITY_SELECTION",
+      "title": "¿En qué ciudad estás?",
+      "terminal": false,
+      "data": {
+        "ciudades": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" }
+            }
+          },
+          "__example__": [
+            { "id": "caracas", "title": "Caracas" },
+            { "id": "valencia", "title": "Valencia" }
+          ]
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "¿En qué ciudad estás?"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.error_message}",
+            "visible": "${data.error_message}"
+          },
+          {
+            "type": "Form",
+            "name": "form_ciudad",
+            "children": [
+              {
+                "type": "RadioButtonsGroup",
+                "name": "ciudad",
+                "label": "Selecciona tu ciudad",
+                "required": true,
+                "data-source": "${data.ciudades}"
+              },
+              {
+                "type": "Footer",
+                "label": "Continuar",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "ciudad": "${form.ciudad}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "COURSE_INFO",
+      "title": "Detalles del curso",
+      "terminal": false,
+      "data": {
+        "ciudad": { "type": "string", "__example__": "caracas" },
+        "ciudad_nombre": { "type": "string", "__example__": "Caracas" },
+        "precio": { "type": "string", "__example__": "$80" },
+        "reserva": { "type": "string", "__example__": "$20" },
+        "incluye": {
+          "type": "string",
+          "__example__": "Materiales e insumos para practicar."
+        },
+        "horario": { "type": "string", "__example__": "10:00 am a 6:00 pm" },
+        "frecuencia": { "type": "string", "__example__": "" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Curso en ${data.ciudad_nombre}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Inversión: ${data.precio}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Reserva tu cupo con ${data.reserva}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Horario: ${data.horario}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.frecuencia}",
+            "visible": "${data.frecuencia}"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "¿Qué incluye?"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.incluye}"
+          },
+          {
+            "type": "Form",
+            "name": "form_interes",
+            "children": [
+              {
+                "type": "OptIn",
+                "name": "interesado",
+                "label": "Me interesa reservar mi cupo",
+                "required": false
+              },
+              {
+                "type": "Footer",
+                "label": "Continuar",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "ciudad": "${data.ciudad}",
+                    "interesado": "${form.interesado}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "INTEREST_CONFIRMATION",
+      "title": "Confirma tu interés",
+      "terminal": true,
+      "data": {
+        "ciudad": { "type": "string", "__example__": "caracas" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "¡Excelente decisión! 🎉"
+          },
+          {
+            "type": "TextBody",
+            "text": "Al confirmar, un asesor de Reino Aromas te escribirá por este mismo chat para darte los métodos de pago y apartar tu cupo."
+          },
+          {
+            "type": "TextCaption",
+            "text": "Los cupos son limitados y se asignan por orden de reserva."
+          },
+          {
+            "type": "Form",
+            "name": "form_confirmacion",
+            "children": [
+              {
+                "type": "Footer",
+                "label": "Confirmar mi cupo",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "ciudad": "${data.ciudad}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -182,6 +182,8 @@ class ConversationController extends MetaBaseController
             'channel'             => $contact->channel,
             'channel_id'          => $contact->channel_id,
             'city'                => $contact->city,
+            'state'               => $contact->state,
+            'state_label'         => Contact::stateLabel($contact->state),
             'phone'               => $contact->phone,
             'instagram_handle'    => $contact->instagram_handle,
             'first_seen_at'       => $contact->first_seen_at?->toIso8601String(),
@@ -205,6 +207,8 @@ class ConversationController extends MetaBaseController
             'status_label'    => $ticket->statusLabel(),
             'priority'        => $ticket->priority,
             'city'            => $ticket->city,
+            'state'           => $ticket->state,
+            'state_label'     => Contact::stateLabel($ticket->state),
             'course_interest' => $ticket->course_interest,
             'notes'           => $ticket->notes,
             'assigned_user'   => $ticket->assignedUser ? [

@@ -19,6 +19,10 @@
         channel: Canal | null
         category: string | null
         is_active: boolean
+        /** true = se pinta como botón sobre la barra de escritura del chat. */
+        is_quick_reply: boolean
+        /** Posición del botón en la barra. Menor primero. */
+        sort_order: number
         usage_count: number
         last_used_at: string | null
         meta_template_name: string | null
@@ -41,6 +45,8 @@
         channel: Canal | ''
         category: string
         is_active: boolean
+        is_quick_reply: boolean
+        sort_order: string
         meta_template_name: string
         price: string
         deposit: string
@@ -89,6 +95,11 @@
         channel: '',
         category: '',
         is_active: true,
+        // Por defecto NO es botón: la barra del chat se llena a mano, porque
+        // qué texto merece un botón es decisión del negocio. Si cada plantilla
+        // nueva entrara sola, la barra se saturaría y perdería su utilidad.
+        is_quick_reply: false,
+        sort_order: '',
         meta_template_name: '',
         price: '',
         deposit: '',
@@ -225,6 +236,8 @@
             channel: t.channel ?? '',
             category: t.category ?? '',
             is_active: t.is_active,
+            is_quick_reply: t.is_quick_reply,
+            sort_order: t.sort_order > 0 ? String(t.sort_order) : '',
             meta_template_name: t.meta_template_name ?? '',
             price: t.price ?? '',
             deposit: t.deposit ?? '',
@@ -264,6 +277,10 @@
             city:    form.value.city    || null,
             channel: form.value.channel || null,
             category: form.value.category || null,
+            // El input queda vacío cuando el agente no elige posición: el 0 es
+            // el default de la columna y hace que caiga al principio del grupo
+            // sin orden, ordenado por nombre.
+            sort_order: form.value.sort_order !== '' ? Number(form.value.sort_order) : 0,
             meta_template_name: form.value.meta_template_name || null,
             price: form.value.price !== '' ? form.value.price : null,
             deposit: form.value.deposit !== '' ? form.value.deposit : null,
@@ -456,6 +473,17 @@
                     </span>
                     <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-secondary/15 text-primary/60 border border-secondary/20">
                         {{ etiquetaCanal(t.channel) }}
+                    </span>
+                    <!-- Se distingue de un vistazo cuáles son botones del chat:
+                         es la diferencia entre "está en el desplegable" y
+                         "está a un clic", y no se ve en ningún otro sitio de
+                         la lista. -->
+                    <span
+                        v-if="t.is_quick_reply"
+                        class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200"
+                        :title="`Botón de respuesta rápida en el chat (posición ${t.sort_order})`"
+                    >
+                        Botón
                     </span>
                     <!-- El precio distingue las plantillas que alimentan el Flow -->
                     <span
@@ -789,6 +817,73 @@
                                         form.is_active ? 'translate-x-6' : 'translate-x-1'
                                     ]" />
                                 </button>
+                            </div>
+
+                            <!-- Respuesta rápida: botón en la barra del chat -->
+                            <div class="flex flex-col gap-3 py-1">
+                                <div class="flex items-center justify-between">
+                                    <div class="pr-3">
+                                        <p class="text-sm font-semibold text-primary">Botón de respuesta rápida</p>
+                                        <p class="text-[11px] text-primary/40 leading-relaxed">
+                                            Se pinta sobre la barra de escritura del chat. Un clic la envía,
+                                            sin pasar por el desplegable.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        @click="form.is_quick_reply = !form.is_quick_reply"
+                                        role="switch"
+                                        :aria-checked="form.is_quick_reply"
+                                        aria-label="Mostrar como botón de respuesta rápida"
+                                        :class="[
+                                            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 cursor-pointer',
+                                            form.is_quick_reply ? 'bg-green-400' : 'bg-primary/20'
+                                        ]"
+                                    >
+                                        <span :class="[
+                                            'inline-block h-4 w-4 rounded-full bg-surface shadow transition-transform',
+                                            form.is_quick_reply ? 'translate-x-6' : 'translate-x-1'
+                                        ]" />
+                                    </button>
+                                </div>
+
+                                <!-- El orden solo aparece si es botón: fuera de
+                                     ese caso no se usa para nada y pedirlo
+                                     siempre hace creer que importa. -->
+                                <label v-if="form.is_quick_reply" class="flex flex-col gap-1">
+                                    <span class="text-[11px] font-semibold text-primary/60">
+                                        Posición en la barra
+                                    </span>
+                                    <input
+                                        v-model="form.sort_order"
+                                        type="number"
+                                        min="0"
+                                        max="999"
+                                        placeholder="0"
+                                        class="px-4 py-2.5 rounded-xl border border-primary/12 text-sm text-primary focus:outline-none focus:border-secondary/50 transition-colors placeholder:text-primary/25 w-32"
+                                        :class="{ 'border-red-300 bg-red-50': formErrors.sort_order }"
+                                    >
+                                    <p v-if="formErrors.sort_order" class="text-xs text-red-500">
+                                        {{ formErrors.sort_order }}
+                                    </p>
+                                    <p class="text-[11px] text-primary/40 leading-relaxed">
+                                        Menor primero. Conviene el orden del guion de atención
+                                        (saludo, precios, horarios, despedida) y no el alfabético.
+                                        El chat muestra los primeros 8 botones.
+                                    </p>
+                                </label>
+
+                                <!-- Un botón inactivo no se pinta en el chat, y
+                                     sin este aviso el agente lo activa aquí,
+                                     no lo ve en el chat y no sabe por qué. -->
+                                <p
+                                    v-if="form.is_quick_reply && !form.is_active"
+                                    role="alert"
+                                    class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 leading-relaxed"
+                                >
+                                    Esta plantilla está inactiva, así que el botón no aparecerá en el chat.
+                                    Actívala arriba para que se vea.
+                                </p>
                             </div>
 
                             <!-- Botones -->

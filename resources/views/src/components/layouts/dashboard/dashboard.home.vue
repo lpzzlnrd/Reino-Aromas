@@ -4,6 +4,7 @@
     import Relevant_Data from './dashboard.relevant.vue'
     import Recents from './dashboard.recents.vue'
     import Cities from './dashboard.cities.vue'
+    import States from './dashboard.states.vue'
     import Urgent from './dashboard.urgent.vue'
     import { useAuth } from '@/composables/useAuth'
     import { useDashboard } from '@/hooks/useDashboard'
@@ -55,13 +56,23 @@
             <Relevant_Data />
         </section>
 
-        <!-- Actividad + ciudades -->
-        <div class="grid grid-cols-12 gap-5 mb-8">
+        <!-- Actividad reciente -->
+        <div class="grid grid-cols-12 gap-5 mb-5">
             <div class="col-span-12 lg:col-span-8">
                 <Recents class="h-full" />
             </div>
             <div class="col-span-12 lg:col-span-4">
                 <Cities class="h-full" />
+            </div>
+        </div>
+
+        <!-- Distribución territorial. Va en su propia fila y no junto a
+             Recents porque son dos cortes de lo mismo (dónde está el cliente)
+             y lado a lado se comparan: la sede dice dónde toma el curso, el
+             estado de dónde escribe. -->
+        <div class="grid grid-cols-12 gap-5 mb-8">
+            <div class="col-span-12">
+                <States />
             </div>
         </div>
 

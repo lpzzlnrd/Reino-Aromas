@@ -27,6 +27,7 @@
     const {
         detail,
         templates,
+        quickReplies,
         loadingDetail,
         sending,
         detailError,
@@ -118,6 +119,34 @@
         showTemplates.value = false
         const ok = await sendTemplate(id)
         if (ok) await scrollToBottom()
+    }
+
+    /*
+     * Botones de respuesta rápida sobre la barra de escritura.
+     *
+     * Un clic envía: el servidor renderiza la plantilla con los datos del
+     * contacto y encola el mensaje, sin paso intermedio. Es lo que los hace
+     * útiles — el desplegable ya cubre el caso de "quiero revisarlo antes".
+     *
+     * Precisamente por eso se guarda cuál se está enviando en vez de un simple
+     * booleano: con `sending` global, un clic bloqueaba los ocho botones y el
+     * agente no sabía cuál había pulsado. Ahora solo el pulsado se ve ocupado.
+     */
+    const enviandoRapida = ref<number | null>(null)
+
+    const enviarRespuestaRapida = async (id: number): Promise<void> => {
+        // Guard de reentrada: en móvil el doble toque es habitual, y sin esto
+        // el cliente recibe el mismo texto dos veces.
+        if (enviandoRapida.value !== null || sending.value || isClosed.value) return
+
+        enviandoRapida.value = id
+
+        try {
+            const ok = await sendTemplate(id)
+            if (ok) await scrollToBottom()
+        } finally {
+            enviandoRapida.value = null
+        }
     }
 
     /**
@@ -263,7 +292,7 @@
 </script>
 
 <template>
-    <div id="desktop-open-chats" class="h-full relative flex flex-col">
+    <div id="desktop-open-chats" class="h-full min-h-0 relative flex flex-col overflow-hidden">
         <!-- Estado vacío: sin chat seleccionado -->
         <!-- Sin el gate de isDesktop: en móvil ninguna rama del v-if/v-else-if
              se cumplía y la bandeja quedaba completamente en blanco, sin lista,
@@ -290,9 +319,9 @@
         </div>
 
         <!-- Chat abierto -->
-        <div v-else-if="detail" class="flex flex-row w-full h-full">
+        <div v-else-if="detail" class="flex flex-row w-full h-full min-h-0">
             <!-- Panel de mensajes -->
-            <div class="h-full flex-1 flex flex-col min-w-0">
+            <div class="h-full min-h-0 flex-1 flex flex-col min-w-0">
                 <!-- Header del chat -->
                 <header class="px-5 py-3.5 border-b border-primary/8 bg-surface/60 backdrop-blur-sm flex items-center justify-between shrink-0">
                     <div class="flex items-center gap-3 min-w-0">
@@ -368,7 +397,7 @@
                     role="log"
                     aria-live="polite"
                     aria-label="Mensajes de la conversación"
-                    class="flex-1 overflow-y-auto scroll p-5 flex flex-col gap-3"
+                    class="flex-1 min-h-0 overflow-y-auto scroll p-5 flex flex-col gap-3"
                 >
                     <p v-if="detail.messages.length === 0" class="text-sm text-primary/40 text-center my-auto">
                         Todavía no hay mensajes en esta conversación.
@@ -480,6 +509,39 @@
                         </button>
                     </div>
 
+                    <!-- Respuestas rápidas.
+
+                         Van sobre el input y no dentro del desplegable porque
+                         son las de uso diario: el desplegable existe para el
+                         catálogo completo, esto para el guion de siempre
+                         (saludar, precios, horarios, despedir). Un clic envía.
+
+                         Con el chat cerrado no se pintan: el envío fallaría y
+                         un botón que no puede hacer nada solo estorba. -->
+                    <div
+                        v-if="quickReplies.length > 0 && !isClosed"
+                        class="flex items-center gap-1.5 overflow-x-auto scroll pb-2 -mx-1 px-1"
+                        role="group"
+                        aria-label="Respuestas rápidas"
+                    >
+                        <button
+                            v-for="tpl in quickReplies"
+                            :key="tpl.id"
+                            type="button"
+                            @click="enviarRespuestaRapida(tpl.id)"
+                            :disabled="sending || enviandoRapida !== null"
+                            :title="tpl.rendered_body"
+                            :aria-label="`Enviar respuesta rápida: ${tpl.name}`"
+                            class="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-full border border-secondary/30 bg-surface text-primary/70 hover:border-secondary hover:bg-secondary/10 hover:text-primary transition-all cursor-pointer disabled:opacity-40 disabled:cursor-wait"
+                        >
+                            <!-- El texto cambia solo en el botón pulsado: con un
+                                 booleano global los ocho decían "Enviando..." y
+                                 el agente no sabía cuál había tocado. -->
+                            <span v-if="enviandoRapida === tpl.id">Enviando...</span>
+                            <span v-else>{{ tpl.name }}</span>
+                        </button>
+                    </div>
+
                     <p v-if="isClosed" class="text-xs text-primary/40 text-center py-2">
                         Esta conversación está cerrada. Reábrela para poder responder.
                     </p>
@@ -524,6 +586,8 @@
                 </footer>
             </div>
 
+            <!-- El scroll propio de la ficha ya vive en su raiz (h-full +
+                 overflow-y-auto); aqui solo hace falta el ancho fijo. -->
             <Info class="w-64 shrink-0 hidden lg:flex"/>
         </div>
     </div>

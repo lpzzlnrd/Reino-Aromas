@@ -6,6 +6,7 @@ import MessagesLayout           from "./components/layouts/messages/messages.res
 import MessagesHome             from "./components/layouts/messages/messages.home.vue";
 import SettingsResponsiveLayout from "./components/layouts/settings/settings.responsiveLayout.vue";
 import SettingsAccounts         from "./components/layouts/settings/settings.accounts.vue";
+import SettingsIgAutomations    from "./components/layouts/settings/settings.instagramAutomations.vue";
 import TicketsBoard             from "./components/layouts/tickets/tickets.board.vue";
 import UsersHome                from "./components/layouts/users/users.home.vue";
 import TemplatesHome            from "./components/layouts/templates/templates.home.vue";
@@ -102,6 +103,16 @@ const router = createRouter({
                             name: "Templates",
                             component: TemplatesHome,
                             meta: { title: "Plantillas" },
+                        },
+                        {
+                            // Instagram no tiene WhatsApp Flows: Ice Breakers y
+                            // Persistent Menu son lo mas cercano. Va bajo
+                            // settings porque es configuracion, no operacion
+                            // diaria como messages o tickets.
+                            path: "instagram-automations",
+                            name: "Instagram Automations",
+                            component: SettingsIgAutomations,
+                            meta: { title: "Automatizaciones IG" },
                         },
                     ],
                 },

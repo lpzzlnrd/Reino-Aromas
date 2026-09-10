@@ -14,6 +14,8 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MetaAccountController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\InstagramAutomationController;
+use App\Http\Controllers\InstagramCommentSettingController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
@@ -147,6 +149,50 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('/conversations/{conversation}/templates', [TemplateController::class, 'forConversation'])
         ->name('api.conversations.templates');
 
+    // Las marcadas de acceso rápido, que el chat pinta como botones sobre la
+    // barra de escritura. Endpoint aparte del de arriba y no un filtro suyo:
+    // el chat pide las dos listas al abrir una conversación y son de tamaño
+    // muy distinto — ocho botones contra el catálogo completo.
+    Route::get('/conversations/{conversation}/quick-replies', [TemplateController::class, 'quickRepliesForConversation'])
+        ->name('api.conversations.quick-replies');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Automatizaciones de Instagram (Ice Breakers y Persistent Menu)
+    |
+    | Instagram no tiene WhatsApp Flows. Estos dos mecanismos son lo mas
+    | cercano: botones que disparan un webhook `messaging_postbacks` y el CRM
+    | responde con una plantilla o un texto fijo.
+    |
+    | OJO con el orden: /sync y /meta-state van ANTES de las rutas con
+    | {automation}, o Laravel intentaria resolver "sync" como un id.
+    |-------------------------------------------------------------------------
+    */
+    Route::prefix('instagram/automations')->name('api.instagram.automations.')->group(function (): void {
+        Route::post('/sync', [InstagramAutomationController::class, 'sync'])->name('sync');
+        Route::get('/meta-state', [InstagramAutomationController::class, 'metaState'])->name('meta-state');
+
+        Route::get('/', [InstagramAutomationController::class, 'index'])->name('index');
+        Route::post('/', [InstagramAutomationController::class, 'store'])->name('store');
+        Route::patch('/{automation}', [InstagramAutomationController::class, 'update'])->name('update');
+        Route::delete('/{automation}', [InstagramAutomationController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |-------------------------------------------------------------------------
+    | DM de bienvenida a quien comenta un post de Instagram
+    |
+    | Es UNA configuracion, no una lista: solo show y update. A diferencia de
+    | los botones no hay nada que sincronizar con Meta -- el DM se manda al
+    | recibir el webhook del comentario. Lo unico que hace falta en Meta es la
+    | suscripcion al topic `comments`.
+    |-------------------------------------------------------------------------
+    */
+    Route::prefix('instagram/comment-settings')->name('api.instagram.comment-settings.')->group(function (): void {
+        Route::get('/', [InstagramCommentSettingController::class, 'show'])->name('show');
+        Route::patch('/', [InstagramCommentSettingController::class, 'update'])->name('update');
+    });
+
     /*
     |-------------------------------------------------------------------------
     | Tickets
@@ -178,6 +224,29 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     |-------------------------------------------------------------------------
     */
     Route::get('/tags', [TagController::class, 'index'])->name('api.tags.index');
+
+    /*
+    |-------------------------------------------------------------------------
+    | Estados de Venezuela
+    |
+    | Catálogo para los desplegables de la ficha del cliente, el panel del
+    | chat y los filtros. Es la contraparte de los PATCH que aceptan `state`:
+    | sin este endpoint el frontend tendría su propia copia de los 24 slugs, y
+    | una copia duplicada es una copia que se desincroniza (ya pasó con las
+    | etiquetas de estado de ticket).
+    |
+    | Solo lectura: la división político-territorial no la edita el negocio.
+    | Vive en App\Models\Contact::stateLabels().
+    |-------------------------------------------------------------------------
+    */
+    Route::get('/states', fn () => response()->json(
+        collect(\App\Models\Contact::stateLabels())
+            ->map(fn (string $label, string $slug): array => [
+                'value' => $slug,
+                'label' => $label,
+            ])
+            ->values()
+    ))->name('api.states.index');
 
     /*
     |-------------------------------------------------------------------------

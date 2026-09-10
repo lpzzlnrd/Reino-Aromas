@@ -23,6 +23,10 @@ class TicketService
             'status'   => 'nuevo',
             'priority' => 'media',
             'city'     => $conversation->contact->city,
+            // Igual que la sede: se copia del contacto para que el reporte
+            // por estado no necesite un JOIN y el ticket conserve de donde
+            // venia el cliente aunque despues se corrija su ficha.
+            'state'    => $conversation->contact->state,
         ]);
 
         $this->activityLogService->log(
