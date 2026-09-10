@@ -5,6 +5,7 @@
     import Plus from '../../icons/icon.plus.vue'
     import Close from '../../icons/icon.close.vue'
     import Info from '../../icons/icon.info.vue'
+    import CommentDm from './settings.instagramCommentDm.vue'
     import { useModal } from '@/composables/useModal'
     import {
         useInstagramAutomations,
@@ -405,6 +406,18 @@
                 Instagram no actualiza el menú en tiempo real: quien ya tenga el chat
                 abierto verá los cambios al refrescar su bandeja.
             </p>
+
+            <div class="w-full max-w-3xl border-t border-primary/8" />
+
+            <!-- DM a quien comenta un post.
+
+                 Va en esta misma pantalla y no en una aparte: para el negocio es
+                 la misma idea ("Instagram responde solo") y separarlo obligaria a
+                 recordar en cual de dos pantallas esta cada automatizacion.
+
+                 A diferencia de los botones, esto NO se publica en Meta: el
+                 mensaje se manda al recibir el webhook del comentario. -->
+            <CommentDm :plantillas="plantillas" />
         </div>
 
         <!-- Modal de alta / edición -->

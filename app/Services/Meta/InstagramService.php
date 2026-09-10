@@ -36,7 +36,53 @@ class InstagramService
             foreach ($entry['messaging'] ?? [] as $messaging) {
                 $this->handleMessagingEvent($messaging);
             }
+
+            // Los comentarios NO llegan por `messaging` sino por `changes`, que
+            // hasta ahora se descartaba en silencio: aunque el topic estuviera
+            // suscrito en Meta, no pasaba nada. Mismo patron que los postbacks
+            // antes de handlePostback().
+            foreach ($entry['changes'] ?? [] as $change) {
+                $this->handleChange($change);
+            }
         }
+    }
+
+    /**
+     * Maneja un cambio de `entry.changes`.
+     *
+     * Hoy solo interesan los comentarios. Los demas campos se ignoran en
+     * silencio y no con un warning: la app esta suscrita a varios topics y
+     * loguear cada uno llenaria el log de ruido que parece un fallo.
+     *
+     * @param  array<string, mixed> $change
+     */
+    private function handleChange(array $change): void
+    {
+        $field = $change['field'] ?? null;
+        $value = $change['value'] ?? [];
+
+        if (! is_array($value)) {
+            return;
+        }
+
+        // `comments` es el topic de comentarios en posts. `live_comments` es el
+        // de directos y trae la misma forma, pero se deja fuera a proposito: un
+        // DM automatico en medio de un live es otra conversacion de producto.
+        if ($field === 'comments') {
+            $this->comentarios()->handleComment($value);
+        }
+    }
+
+    /**
+     * El servicio de comentarios, resuelto tarde.
+     *
+     * No va en el constructor porque InstagramCommentService depende de este
+     * servicio para enviar el DM: inyectarlo al reves cerraria un ciclo que el
+     * contenedor no puede construir.
+     */
+    private function comentarios(): InstagramCommentService
+    {
+        return app(InstagramCommentService::class);
     }
 
     /**
@@ -311,6 +357,57 @@ class InstagramService
             Log::error('[Instagram] Error al enviar mensaje', [
                 'recipient' => $recipientIgsid,
                 'error'     => $error,
+            ]);
+
+            return ['success' => false, 'error' => $error];
+        }
+
+        return [
+            'success'    => true,
+            'message_id' => $response->json('message_id'),
+        ];
+    }
+
+    /**
+     * Envia un DM a quien comento un post, usando el id del comentario.
+     *
+     * Es un endpoint distinto de sendMessage() solo en el destinatario:
+     * `recipient.comment_id` en vez de `recipient.id`. Meta lo permite porque
+     * el comentario publico cuenta como la interaccion que abre la ventana.
+     *
+     * LIMITES DE META, que no son negociables y explican el resto del disenio:
+     *
+     *  - UN solo mensaje por comentario. Un segundo intento se rechaza.
+     *  - Ventana de 7 dias desde el comentario.
+     *  - No se puede retomar la conversacion despues por iniciativa propia; si
+     *    la persona responde, ahi si se abre la ventana normal de 24h.
+     *
+     * Por eso la idempotencia se guarda en `instagram_comment_replies` ANTES de
+     * enviar y no despues: si el proceso muere entre la llamada y el registro,
+     * es preferible no haber mandado el DM a mandarlo dos veces.
+     *
+     * @return array{success: bool, message_id?: string|null, error?: mixed}
+     */
+    public function sendCommentReply(string $commentId, string $text): array
+    {
+        $igAccountId = $this->credentials->obtener('instagram_account_id');
+
+        $accessToken = $this->credentials->obtener('instagram_access_token')
+            ?: $this->credentials->obtener('access_token');
+
+        // graph.instagram.com, igual que el resto del producto de IG. Ver la
+        // nota en sendMessage().
+        $response = Http::withToken($accessToken)
+            ->post($this->credentials->urlGraphInstagram("{$igAccountId}/messages"), [
+                'recipient' => ['comment_id' => $commentId],
+                'message'   => ['text' => $text],
+            ]);
+
+        if ($response->failed()) {
+            $error = $response->json('error', []);
+            Log::error('[Instagram] Error al enviar el DM de bienvenida por comentario', [
+                'comment_id' => $commentId,
+                'error'      => $error,
             ]);
 
             return ['success' => false, 'error' => $error];

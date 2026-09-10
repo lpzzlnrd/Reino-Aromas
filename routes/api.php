@@ -15,6 +15,7 @@ use App\Http\Controllers\MetaAccountController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\InstagramAutomationController;
+use App\Http\Controllers\InstagramCommentSettingController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
@@ -175,6 +176,21 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::post('/', [InstagramAutomationController::class, 'store'])->name('store');
         Route::patch('/{automation}', [InstagramAutomationController::class, 'update'])->name('update');
         Route::delete('/{automation}', [InstagramAutomationController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |-------------------------------------------------------------------------
+    | DM de bienvenida a quien comenta un post de Instagram
+    |
+    | Es UNA configuracion, no una lista: solo show y update. A diferencia de
+    | los botones no hay nada que sincronizar con Meta -- el DM se manda al
+    | recibir el webhook del comentario. Lo unico que hace falta en Meta es la
+    | suscripcion al topic `comments`.
+    |-------------------------------------------------------------------------
+    */
+    Route::prefix('instagram/comment-settings')->name('api.instagram.comment-settings.')->group(function (): void {
+        Route::get('/', [InstagramCommentSettingController::class, 'show'])->name('show');
+        Route::patch('/', [InstagramCommentSettingController::class, 'update'])->name('update');
     });
 
     /*
