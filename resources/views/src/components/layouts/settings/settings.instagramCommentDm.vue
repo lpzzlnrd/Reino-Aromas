@@ -4,7 +4,10 @@
     import { useInstagramCommentDm, type CommentResponseType } from '@/hooks/useInstagramCommentDm'
 
     /*
-     * DM de bienvenida a quien comenta un post.
+     * Respuesta automática a quien comenta un post: el comentario público
+     * debajo del suyo y el DM privado. Son dos interruptores independientes
+     * porque responden a necesidades distintas -- el público avisa (y lo ve
+     * todo el mundo), el privado vende.
      *
      * Componente aparte y no otra pantalla: es la misma idea que los botones
      * ("Instagram responde solo") y separarlo obligaría al negocio a recordar
@@ -32,6 +35,7 @@
         cargar,
         guardar,
         alternar,
+        alternarAviso,
     } = useInstagramCommentDm()
 
     onMounted(cargar)
@@ -47,6 +51,7 @@
     const texto = ref('')
     const plantillaId = ref<number | null>(null)
     const tope = ref(100)
+    const avisoTexto = ref('')
 
     /*
      * Las palabras clave se editan como una sola línea separada por comas: es
@@ -64,6 +69,7 @@
             texto.value = valor.response_text ?? ''
             plantillaId.value = valor.template_id
             tope.value = valor.daily_limit
+            avisoTexto.value = valor.public_reply_text ?? ''
             clavesTexto.value = (valor.keywords ?? []).join(', ')
         },
         { immediate: true },
@@ -88,6 +94,7 @@
             texto.value !== (settings.value.response_text ?? '') ||
             plantillaId.value !== settings.value.template_id ||
             tope.value !== settings.value.daily_limit ||
+            avisoTexto.value !== (settings.value.public_reply_text ?? '') ||
             claves.value.join(',') !== (settings.value.keywords ?? []).join(',')
         )
     })
@@ -97,6 +104,7 @@
             response_type: tipo.value,
             response_text: tipo.value === 'text' ? texto.value : null,
             template_id: tipo.value === 'template' ? plantillaId.value : null,
+            public_reply_text: avisoTexto.value,
             keywords: claves.value,
             daily_limit: tope.value,
         })
@@ -104,6 +112,8 @@
 
     /** Cuántos caracteres van; Instagram recorta los mensajes muy largos. */
     const largo = computed(() => texto.value.length)
+
+    const largoAviso = computed(() => avisoTexto.value.length)
 
     const etiquetaEstado = (estado: string): string =>
         estado === 'sent' ? 'Enviado' : estado === 'failed' ? 'Falló' : 'Omitido'
@@ -130,26 +140,12 @@
 <template>
     <section class="w-full max-w-3xl flex flex-col gap-3">
 
-        <div class="flex items-end justify-between gap-4">
-            <div>
-                <h2 class="font-primary text-xl text-primary">Mensaje a quien comenta</h2>
-                <p class="text-xs text-primary/50 mt-0.5">
-                    Cuando alguien comenta una publicación, recibe un privado de bienvenida.
-                </p>
-            </div>
-
-            <!-- El interruptor guarda solo su campo: ver el borrador local. -->
-            <button
-                v-if="settings"
-                @click="alternar()"
-                :disabled="guardando"
-                class="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-xl border-2 transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                :class="settings.is_active
-                    ? 'border-green-500 bg-green-500 text-white hover:brightness-105'
-                    : 'border-secondary/40 text-primary/60 hover:border-primary hover:bg-primary hover:text-white'"
-            >
-                {{ settings.is_active ? 'Activo' : 'Inactivo' }}
-            </button>
+        <div>
+            <h2 class="font-primary text-xl text-primary">Respuesta a quien comenta</h2>
+            <p class="text-xs text-primary/50 mt-0.5">
+                Cuando alguien comenta una publicación, se le responde debajo del
+                comentario y se le escribe por privado.
+            </p>
         </div>
 
         <p v-if="cargando" class="text-sm text-primary/40 py-4">Cargando...</p>
@@ -178,14 +174,84 @@
                 <div class="text-[11px] text-primary/60 leading-relaxed">
                     <p class="font-bold text-primary/75">Lo que permite Instagram</p>
                     <p>
-                        Un solo mensaje por comentario, dentro de los 7 días siguientes.
-                        No se puede insistir después: si la persona responde, ahí se abre
-                        la conversación normal y la atiende un agente.
+                        Un solo mensaje privado por comentario, dentro de los 7 días
+                        siguientes. No se puede insistir después: si la persona responde,
+                        ahí se abre la conversación normal y la atiende un agente.
+                    </p>
+                    <p class="mt-1">
+                        Solo se responde a comentarios del post. A las respuestas dentro
+                        de un hilo no, porque Instagram las colgaría del comentario
+                        original y se vería duplicado.
                     </p>
                 </div>
             </div>
 
+            <!-- PASO 1: el comentario público.
+
+                 Va primero porque es lo que pasa primero y lo que la persona ve
+                 sin salir del post. Sin él, el DM cae en Solicitudes -- una
+                 carpeta que casi nadie mira -- y nadie se entera de nada. -->
+            <div class="glass-card p-5 flex flex-col gap-4">
+
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-primary">1. Respuesta pública</p>
+                        <p class="text-[11px] text-primary/50 leading-relaxed mt-0.5">
+                            Se publica debajo del comentario, a la vista de todos. Sirve para
+                            avisarle que le escribiste al privado.
+                        </p>
+                    </div>
+
+                    <!-- Interruptor propio: el aviso público y el privado se
+                         activan por separado. Guarda solo su campo, para no
+                         arrastrar el formulario a medio escribir. -->
+                    <button
+                        @click="alternarAviso()"
+                        :disabled="guardando"
+                        class="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-xl border-2 transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :class="settings.public_reply_active
+                            ? 'border-green-500 bg-green-500 text-white hover:brightness-105'
+                            : 'border-secondary/40 text-primary/60 hover:border-primary hover:bg-primary hover:text-white'"
+                    >
+                        {{ settings.public_reply_active ? 'Activo' : 'Inactivo' }}
+                    </button>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <input
+                        v-model="avisoTexto"
+                        type="text"
+                        maxlength="280"
+                        placeholder="¡Gracias por comentar! Te escribimos por privado 💌"
+                        class="w-full text-sm text-primary bg-surface border border-primary/12 rounded-xl px-3 py-2.5 focus:outline-none focus:border-secondary/50 transition-colors"
+                    >
+                    <p class="text-[10px] text-primary/40 text-right">{{ largoAviso }}/280</p>
+                </div>
+            </div>
+
+            <!-- PASO 2: el DM privado. -->
             <div class="glass-card p-5 flex flex-col gap-5">
+
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-primary">2. Mensaje privado</p>
+                        <p class="text-[11px] text-primary/50 leading-relaxed mt-0.5">
+                            Llega a su bandeja. Es el mensaje que vende: corto, con lo esencial
+                            y una pregunta al final.
+                        </p>
+                    </div>
+
+                    <button
+                        @click="alternar()"
+                        :disabled="guardando"
+                        class="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-xl border-2 transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :class="settings.is_active
+                            ? 'border-green-500 bg-green-500 text-white hover:brightness-105'
+                            : 'border-secondary/40 text-primary/60 hover:border-primary hover:bg-primary hover:text-white'"
+                    >
+                        {{ settings.is_active ? 'Activo' : 'Inactivo' }}
+                    </button>
+                </div>
 
                 <!-- Qué se envía -->
                 <div class="flex flex-col gap-2">
@@ -334,6 +400,14 @@
                             </p>
                             <p v-if="r.reason" class="text-[11px] text-primary/40 italic mt-0.5">
                                 {{ r.reason }}
+                            </p>
+                            <!-- El aviso público es un envío aparte: pudo salir
+                                 aunque el privado no, y al revés. -->
+                            <p v-if="r.replied" class="text-[10px] text-green-700 mt-0.5">
+                                Respondido en el post
+                            </p>
+                            <p v-else-if="r.reply_error" class="text-[10px] text-red-600 mt-0.5">
+                                No se pudo comentar: {{ r.reply_error }}
                             </p>
                         </div>
 

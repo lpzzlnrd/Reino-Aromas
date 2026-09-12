@@ -2,7 +2,9 @@ import { computed, ref } from 'vue'
 import api from '@/lib/axios'
 
 /**
- * DM de bienvenida a quien comenta un post de Instagram.
+ * Respuesta automática a quien comenta un post de Instagram: el comentario
+ * público debajo del suyo y el DM privado. Los dos interruptores son
+ * independientes.
  *
  * A diferencia de los botones (useInstagramAutomations) acá NO hay nada que
  * sincronizar con Meta: el mensaje se manda en el momento en que llega el
@@ -19,7 +21,11 @@ export type CommentResponseType = 'template' | 'text'
 
 export type CommentDmSettings = {
     id: number
+    /** El DM privado. */
     is_active: boolean
+    /** El comentario público debajo del suyo. Independiente del DM. */
+    public_reply_active: boolean
+    public_reply_text: string | null
     response_type: CommentResponseType
     template_id: number | null
     template: { id: number; name: string; is_active: boolean } | null
@@ -46,12 +52,17 @@ export type CommentDmAttempt = {
     comment: string | null
     status: 'sent' | 'skipped' | 'failed'
     reason: string | null
+    /** El aviso público se publicó. Va aparte del status, que es el del DM. */
+    replied: boolean
+    reply_error: string | null
     created_at: string | null
 }
 
 /** Lo que se manda al guardar. Parcial: el backend acepta un PATCH. */
 export type CommentDmPayload = {
     is_active?: boolean
+    public_reply_active?: boolean
+    public_reply_text?: string | null
     response_type?: CommentResponseType
     template_id?: number | null
     response_text?: string | null
@@ -135,6 +146,13 @@ export function useInstagramCommentDm() {
         return guardar({ is_active: !settings.value.is_active })
     }
 
+    /** Lo mismo para el aviso público, que es un interruptor independiente. */
+    const alternarAviso = async (): Promise<boolean> => {
+        if (settings.value === null) return false
+
+        return guardar({ public_reply_active: !settings.value.public_reply_active })
+    }
+
     return {
         settings,
         stats,
@@ -148,6 +166,7 @@ export function useInstagramCommentDm() {
         cargar,
         guardar,
         alternar,
+        alternarAviso,
     }
 }
 

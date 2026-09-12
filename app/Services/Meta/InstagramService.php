@@ -420,6 +420,55 @@ class InstagramService
     }
 
     /**
+     * Publica una respuesta PUBLICA debajo del comentario.
+     *
+     * Es el aviso "te escribimos al privado": sin el, la persona no sabe que
+     * tiene un DM esperando (le llega a Solicitudes si no sigue la cuenta, que
+     * es una carpeta que nadie mira), y el resto de la gente no ve que la cuenta
+     * responde.
+     *
+     * Endpoint distinto del DM: aqui el comentario es el NODO, no el
+     * destinatario -- POST /{comment-id}/replies con `message` en la query.
+     *
+     * LIMITES DE LA DOC, que explican los cortes de arriba:
+     *
+     *  - Solo comentarios de primer nivel. Una respuesta a una respuesta se
+     *    cuelga del comentario padre, asi que responder un hilo duplicaria el
+     *    aviso bajo el comentario original.
+     *  - No se puede responder a comentarios ocultos.
+     *  - Nada de esto aplica a Instagram Live.
+     *
+     * @return array{success: bool, reply_id?: string|null, error?: mixed}
+     */
+    public function replyToComment(string $commentId, string $text): array
+    {
+        $accessToken = $this->credentials->obtener('instagram_access_token')
+            ?: $this->credentials->obtener('access_token');
+
+        // El mensaje va como query string y no en el cuerpo: asi lo define la
+        // referencia de IG Comment Replies.
+        $response = Http::withToken($accessToken)
+            ->post($this->credentials->urlGraphInstagram("{$commentId}/replies"), [
+                'message' => $text,
+            ]);
+
+        if ($response->failed()) {
+            $error = $response->json('error', []);
+            Log::error('[Instagram] Error al responder el comentario en publico', [
+                'comment_id' => $commentId,
+                'error'      => $error,
+            ]);
+
+            return ['success' => false, 'error' => $error];
+        }
+
+        return [
+            'success'  => true,
+            'reply_id' => $response->json('id'),
+        ];
+    }
+
+    /**
      * Verifica la firma HMAC del webhook entrante.
      *
      * Sin app_secret devuelve false sin calcular nada: un HMAC con clave vacía

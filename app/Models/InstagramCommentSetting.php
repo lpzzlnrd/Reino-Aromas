@@ -18,6 +18,8 @@ class InstagramCommentSetting extends Model
 
     protected $fillable = [
         'is_active',
+        'public_reply_active',
+        'public_reply_text',
         'response_type',
         'template_id',
         'response_text',
@@ -28,9 +30,10 @@ class InstagramCommentSetting extends Model
     protected function casts(): array
     {
         return [
-            'is_active'   => 'boolean',
-            'keywords'    => 'array',
-            'daily_limit' => 'integer',
+            'is_active'           => 'boolean',
+            'public_reply_active' => 'boolean',
+            'keywords'            => 'array',
+            'daily_limit'         => 'integer',
         ];
     }
 
@@ -74,6 +77,23 @@ class InstagramCommentSetting extends Model
         };
 
         return $texto !== null && trim($texto) !== '' ? $texto : null;
+    }
+
+    /**
+     * El aviso público a publicar debajo del comentario, o null.
+     *
+     * Devuelve null si está apagado o si no hay texto: publicar un comentario
+     * vacío en nombre del negocio sería peor que no publicar nada.
+     */
+    public function avisoPublico(): ?string
+    {
+        if (! $this->public_reply_active) {
+            return null;
+        }
+
+        $texto = $this->public_reply_text;
+
+        return $texto !== null && trim($texto) !== '' ? trim($texto) : null;
     }
 
     /**
