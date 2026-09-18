@@ -66,14 +66,34 @@ class SendInstagramMessageJob implements ShouldQueue
 
         $result = $instagramService->sendMessage($recipient, $text);
 
-        // Se lanza excepción en vez de marcar failed y volver: sin throw la
-        // cola considera el Job exitoso y $tries nunca reintenta.
         if (! ($result['success'] ?? false)) {
-            throw new \RuntimeException(
-                is_string($result['error'] ?? null)
-                    ? $result['error']
-                    : json_encode($result['error'] ?? 'Error al enviar el mensaje de Instagram.'),
-            );
+            $error = $result['error'] ?? null;
+
+            // Un mensaje que no cabe hoy tampoco va a caber dentro de dos
+            // minutos: reintentarlo ocupa el worker 2,7 minutos (backoff
+            // 10+30+120) y escribe tres stacktraces de 35 líneas en el log
+            // para llegar al mismo sitio. Con la cola llena de estos, el
+            // servidor entero se arrastra.
+            //
+            // Se marca fallido y se vuelve SIN throw: es el mismo camino que
+            // usan el IGSID ausente y el cuerpo vacío, que tampoco mejoran con
+            // el tiempo.
+            if ($this->esErrorDefinitivo($error)) {
+                $this->markFailed($message, $this->textoDeError($error));
+
+                Log::warning('[Instagram] Mensaje descartado sin reintentar', [
+                    'message_id' => $this->messageId,
+                    'motivo'     => $this->textoDeError($error),
+                ]);
+
+                return;
+            }
+
+            // El resto sí merece reintento: un 500 de Meta o un corte de red
+            // se resuelven solos. Se lanza excepción en vez de marcar failed y
+            // volver, porque sin throw la cola considera el Job exitoso y
+            // $tries nunca reintenta.
+            throw new \RuntimeException($this->textoDeError($error));
         }
 
         $message->forceFill([
@@ -96,6 +116,51 @@ class SendInstagramMessageJob implements ShouldQueue
             'message_id' => $this->messageId,
             'error'      => $exception->getMessage(),
         ]);
+    }
+
+    /**
+     * Si el error es de los que no cambian por reintentar.
+     *
+     * La lista es corta a propósito: ante la duda se reintenta. Dar por
+     * definitivo un fallo pasajero pierde un mensaje del cliente, que es peor
+     * que gastar tres intentos de más.
+     *
+     *  - 2534038: el texto supera los 1000 caracteres de Instagram.
+     *  - 190:     token inválido o vencido. Reintentar no lo renueva; hay que
+     *             reconectar la cuenta desde Ajustes.
+     *  - 10 / 200: falta un permiso. Es configuración de la app en Meta.
+     *
+     * @param  array<string, mixed>|mixed $error
+     */
+    private function esErrorDefinitivo(mixed $error): bool
+    {
+        if (! is_array($error)) {
+            return false;
+        }
+
+        if (($error['error_subcode'] ?? null) === InstagramService::SUBCODIGO_MENSAJE_LARGO) {
+            return true;
+        }
+
+        return in_array($error['code'] ?? null, [10, 190, 200], strict: true);
+    }
+
+    /**
+     * El texto del error, venga como string o como el array de Meta.
+     *
+     * @param  array<string, mixed>|mixed $error
+     */
+    private function textoDeError(mixed $error): string
+    {
+        if (is_string($error)) {
+            return $error;
+        }
+
+        if (is_array($error) && is_string($error['message'] ?? null)) {
+            return $error['message'];
+        }
+
+        return json_encode($error) ?: 'Error al enviar el mensaje de Instagram.';
     }
 
     private function markFailed(Message $message, string $reason): void
