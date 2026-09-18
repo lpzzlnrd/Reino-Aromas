@@ -17,6 +17,29 @@ use Illuminate\Support\Facades\Log;
 
 class InstagramService
 {
+    /**
+     * Tope de caracteres que Instagram acepta en un DM.
+     *
+     * Pasarse devuelve el error 100 con subcódigo 2534038, y Meta lo manda
+     * traducido al idioma de la app — en chino, lo que deja al agente sin
+     * entender por qué su mensaje no salió. Se valida acá antes de llamar a
+     * Meta para fallar con un texto que el agente sí puede leer.
+     *
+     * OJO: el editor de plantillas permite hasta 4000 caracteres porque ese es
+     * el tope cómodo de WhatsApp (4096). Una misma plantilla puede ser válida
+     * en WhatsApp e inválida en Instagram, y por eso el límite vive acá, en el
+     * canal, y no en la validación de la plantilla.
+     */
+    public const MAX_CARACTERES_DM = 1000;
+
+    /**
+     * Subcódigo de Meta para "el mensaje supera el largo permitido".
+     *
+     * Público porque SendInstagramMessageJob lo consulta para decidir que el
+     * fallo es definitivo y no vale la pena reintentar.
+     */
+    public const SUBCODIGO_MENSAJE_LARGO = 2534038;
+
     public function __construct(
         private ContactService $contactService,
         private ConversationService $conversationService,
@@ -333,6 +356,24 @@ class InstagramService
      */
     public function sendMessage(string $recipientIgsid, string $text): array
     {
+        // Antes de gastar la llamada: Meta rechaza los mensajes largos con un
+        // error traducido al idioma de la app, que el agente no puede leer.
+        // mb_strlen y no strlen: los emojis y las tildes cuentan como un
+        // carácter para Meta, pero strlen los contaría como varios bytes y
+        // rechazaría mensajes que en realidad caben.
+        if (($largo = mb_strlen($text)) > self::MAX_CARACTERES_DM) {
+            Log::warning('[Instagram] Mensaje demasiado largo, no se envió', [
+                'recipient' => $recipientIgsid,
+                'largo'     => $largo,
+                'maximo'    => self::MAX_CARACTERES_DM,
+            ]);
+
+            return [
+                'success' => false,
+                'error'   => $this->errorMensajeLargo($largo),
+            ];
+        }
+
         // Falla con el nombre de la variable ausente en vez de pedirle a Meta
         // una URL con el id vacío.
         $igAccountId = $this->credentials->obtener('instagram_account_id');
@@ -359,12 +400,56 @@ class InstagramService
                 'error'     => $error,
             ]);
 
-            return ['success' => false, 'error' => $error];
+            return ['success' => false, 'error' => $this->errorLegible($error, $text)];
         }
 
         return [
             'success'    => true,
             'message_id' => $response->json('message_id'),
+        ];
+    }
+
+    /**
+     * Convierte un error de Meta en algo que el agente pueda leer.
+     *
+     * Meta traduce sus mensajes al idioma configurado en la app, y para esta
+     * cuenta llegan en chino: el agente ve un muro de caracteres que no le
+     * dice qué hacer. Los subcódigos, en cambio, son estables y numéricos.
+     *
+     * Solo se reescriben los errores accionables por el agente. El resto se
+     * devuelve tal cual: inventar un texto amable para un fallo que no
+     * entendemos escondería la causa real justo cuando hace falta.
+     *
+     * @param  array<string, mixed>|mixed $error
+     * @return array<string, mixed>|mixed
+     */
+    private function errorLegible(mixed $error, string $text): mixed
+    {
+        if (! is_array($error)) {
+            return $error;
+        }
+
+        if (($error['error_subcode'] ?? null) === self::SUBCODIGO_MENSAJE_LARGO) {
+            return $this->errorMensajeLargo(mb_strlen($text)) + ['meta_error' => $error];
+        }
+
+        return $error;
+    }
+
+    /**
+     * Forma del error de mensaje largo, con el dato que el agente necesita:
+     * cuánto se pasó y de cuánto es el tope.
+     *
+     * @return array<string, mixed>
+     */
+    private function errorMensajeLargo(int $largo): array
+    {
+        return [
+            'message'       => "El mensaje tiene {$largo} caracteres y Instagram solo permite "
+                . self::MAX_CARACTERES_DM . '. Acorta el texto de la plantilla e inténtalo de nuevo.',
+            'type'          => 'MensajeDemasiadoLargo',
+            'code'          => 100,
+            'error_subcode' => self::SUBCODIGO_MENSAJE_LARGO,
         ];
     }
 
@@ -390,6 +475,22 @@ class InstagramService
      */
     public function sendCommentReply(string $commentId, string $text): array
     {
+        // Validar antes pesa más acá que en sendMessage(): Meta permite UN solo
+        // DM por comentario, así que un rechazo por largo quema el único
+        // intento y esa persona ya no recibe nada nunca.
+        if (($largo = mb_strlen($text)) > self::MAX_CARACTERES_DM) {
+            Log::warning('[Instagram] DM por comentario demasiado largo, no se envió', [
+                'comment_id' => $commentId,
+                'largo'      => $largo,
+                'maximo'     => self::MAX_CARACTERES_DM,
+            ]);
+
+            return [
+                'success' => false,
+                'error'   => $this->errorMensajeLargo($largo),
+            ];
+        }
+
         $igAccountId = $this->credentials->obtener('instagram_account_id');
 
         $accessToken = $this->credentials->obtener('instagram_access_token')
@@ -410,12 +511,61 @@ class InstagramService
                 'error'      => $error,
             ]);
 
-            return ['success' => false, 'error' => $error];
+            return ['success' => false, 'error' => $this->errorLegible($error, $text)];
         }
 
         return [
             'success'    => true,
             'message_id' => $response->json('message_id'),
+        ];
+    }
+
+    /**
+     * Publica una respuesta PUBLICA debajo del comentario.
+     *
+     * Es el aviso "te escribimos al privado": sin el, la persona no sabe que
+     * tiene un DM esperando (le llega a Solicitudes si no sigue la cuenta, que
+     * es una carpeta que nadie mira), y el resto de la gente no ve que la cuenta
+     * responde.
+     *
+     * Endpoint distinto del DM: aqui el comentario es el NODO, no el
+     * destinatario -- POST /{comment-id}/replies con `message` en la query.
+     *
+     * LIMITES DE LA DOC, que explican los cortes de arriba:
+     *
+     *  - Solo comentarios de primer nivel. Una respuesta a una respuesta se
+     *    cuelga del comentario padre, asi que responder un hilo duplicaria el
+     *    aviso bajo el comentario original.
+     *  - No se puede responder a comentarios ocultos.
+     *  - Nada de esto aplica a Instagram Live.
+     *
+     * @return array{success: bool, reply_id?: string|null, error?: mixed}
+     */
+    public function replyToComment(string $commentId, string $text): array
+    {
+        $accessToken = $this->credentials->obtener('instagram_access_token')
+            ?: $this->credentials->obtener('access_token');
+
+        // El mensaje va como query string y no en el cuerpo: asi lo define la
+        // referencia de IG Comment Replies.
+        $response = Http::withToken($accessToken)
+            ->post($this->credentials->urlGraphInstagram("{$commentId}/replies"), [
+                'message' => $text,
+            ]);
+
+        if ($response->failed()) {
+            $error = $response->json('error', []);
+            Log::error('[Instagram] Error al responder el comentario en publico', [
+                'comment_id' => $commentId,
+                'error'      => $error,
+            ]);
+
+            return ['success' => false, 'error' => $error];
+        }
+
+        return [
+            'success'  => true,
+            'reply_id' => $response->json('id'),
         ];
     }
 

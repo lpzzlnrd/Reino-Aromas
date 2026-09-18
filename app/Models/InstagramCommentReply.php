@@ -28,6 +28,8 @@ class InstagramCommentReply extends Model
         'status',
         'skip_reason',
         'message_id',
+        'public_reply_id',
+        'public_reply_error',
     ];
 
     public function message(): BelongsTo

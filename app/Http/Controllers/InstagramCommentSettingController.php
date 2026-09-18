@@ -10,7 +10,8 @@ use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Configuración del DM de bienvenida a quien comenta un post de Instagram.
+ * Configuración de la respuesta automática a quien comenta un post de Instagram:
+ * el comentario público y el DM privado.
  *
  * No hay CRUD: es UNA configuración, así que solo se lee y se actualiza. Ver la
  * migración para el porqué de no reutilizar `instagram_automations`.
@@ -60,8 +61,9 @@ class InstagramCommentSettingController extends Controller
             targetId: $config->id,
             action: 'instagram_comment_setting.updated',
             metadata: [
-                'is_active'     => $config->is_active,
-                'response_type' => $config->response_type,
+                'is_active'           => $config->is_active,
+                'public_reply_active' => $config->public_reply_active,
+                'response_type'       => $config->response_type,
             ],
         );
 
@@ -78,18 +80,20 @@ class InstagramCommentSettingController extends Controller
     private function serializar(InstagramCommentSetting $config): array
     {
         return [
-            'id'            => $config->id,
-            'is_active'     => $config->is_active,
-            'response_type' => $config->response_type,
-            'template_id'   => $config->template_id,
-            'template'      => $config->template !== null ? [
+            'id'                  => $config->id,
+            'is_active'           => $config->is_active,
+            'public_reply_active' => $config->public_reply_active,
+            'public_reply_text'   => $config->public_reply_text,
+            'response_type'       => $config->response_type,
+            'template_id'         => $config->template_id,
+            'template'            => $config->template !== null ? [
                 'id'        => $config->template->id,
                 'name'      => $config->template->name,
                 'is_active' => $config->template->is_active,
             ] : null,
-            'response_text' => $config->response_text,
-            'keywords'      => $config->keywords ?? [],
-            'daily_limit'   => $config->daily_limit,
+            'response_text'       => $config->response_text,
+            'keywords'            => $config->keywords ?? [],
+            'daily_limit'         => $config->daily_limit,
 
             // La plantilla elegida se borró o se desactivó: la automatización
             // está encendida pero no puede responder. Se avisa en la UI en vez
@@ -142,6 +146,10 @@ class InstagramCommentSettingController extends Controller
                 'comment'    => $r->comment_text,
                 'status'     => $r->status,
                 'reason'     => $r->skip_reason,
+                // Si el aviso público salió o por qué no: son dos envíos
+                // independientes y el agente necesita distinguirlos.
+                'replied'    => $r->public_reply_id !== null,
+                    'reply_error' => $r->public_reply_error,
                 'created_at' => $r->created_at?->toIso8601String(),
             ])
             ->all();

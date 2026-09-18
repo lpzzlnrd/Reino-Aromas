@@ -33,3 +33,12 @@ Thumbs.db
 # IPs, puertos internos y rutas de llaves. Nada de eso debe quedar en el
 # historial de git, que es público y no se puede reescribir sin dolor.
 /VPS.md
+
+# Guías de uso del CRM para el equipo (HTML y PDF generados).
+# Fuera del repo: son material de capacitación que se regenera cuando cambia
+# la interfaz, y los PDF son binarios de cientos de KB que inflarían el
+# historial sin aportar nada al código. El HTML fuente se puede volver a
+# generar cuando haga falta.
+/docs/guia-*.html
+/docs/guia-*.pdf
+/docs/guia-*.md

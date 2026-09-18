@@ -15,14 +15,27 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Responde con un DM de bienvenida a quien comenta un post de Instagram.
+ * Responde a quien comenta un post de Instagram, por dos vías a la vez.
+ *
+ *   1. Un comentario PÚBLICO debajo del suyo ("te escribimos al privado").
+ *   2. Un DM privado con el mensaje comercial.
+ *
+ * Las dos son independientes y se pueden activar por separado. El aviso público
+ * existe porque el DM, para quien no sigue la cuenta, cae en la carpeta de
+ * Solicitudes -- que nadie mira. Y porque el resto de la gente que lee los
+ * comentarios ve que la cuenta responde.
+ *
+ * ORDEN DELIBERADO: el aviso público va primero. Es barato, es lo que la persona
+ * ve sin salir del post, y no depende de que el DM salga. Si el privado falla o
+ * se frena por el tope diario, al menos quedó dicho que la cuenta responde.
  *
  * El webhook de comentarios llega por `entry.changes` con `field: "comments"`,
  * NO por `entry.messaging` como los mensajes y los postbacks. Ver
  * InstagramService::processWebhookPayload().
  *
- * Sobre los límites de Meta (un DM por comentario, ventana de 7 días) ver
- * InstagramService::sendCommentReply().
+ * Sobre los límites de Meta (un DM por comentario, ventana de 7 días, solo
+ * comentarios de primer nivel) ver InstagramService::sendCommentReply() y
+ * replyToComment().
  */
 class InstagramCommentService
 {
@@ -87,7 +100,16 @@ class InstagramCommentService
             return;
         }
 
-        $motivo = $this->motivoParaOmitir($value, $igsid, $texto);
+        // Dos preguntas distintas, en este orden:
+        //
+        //   1. ¿Hay que dejar en paz este comentario? (la cuenta propia, un
+        //      hilo, un comentario que no nos interesa)
+        //   2. Si sí hay que atenderlo, ¿hay un DM que mandar?
+        //
+        // Separarlas importa porque el aviso público se publica en los casos en
+        // que el DM no sale por motivos NUESTROS (el tope diario, un fallo de
+        // Meta): la persona ya comentó y dejarla sin ninguna señal es peor.
+        $motivo = $this->motivoParaIgnorar($value, $igsid);
 
         if ($motivo !== null) {
             $registro->forceFill([
@@ -100,7 +122,24 @@ class InstagramCommentService
 
         $config = InstagramCommentSetting::actual();
 
-        // Ya validado en motivoParaOmitir(); el ?? '' es para el analizador
+        // El aviso público va PRIMERO y con su propia condición: es barato, es
+        // lo que la persona ve sin salir del post, y no depende de que el DM
+        // haya salido. Si el DM falla después, al menos quedó dicho que la
+        // cuenta responde.
+        $this->publicarAviso($config, $registro, $commentId);
+
+        $motivoDm = $this->motivoParaNoEnviarDm($config, $texto);
+
+        if ($motivoDm !== null) {
+            $registro->forceFill([
+                'status'      => InstagramCommentReply::STATUS_SKIPPED,
+                'skip_reason' => $motivoDm,
+            ])->save();
+
+            return;
+        }
+
+        // Ya validado en motivoParaNoEnviarDm(); el ?? '' es para el analizador
         // estático, que no puede saberlo.
         $cuerpo = $config->respuesta() ?? '';
 
@@ -145,24 +184,31 @@ class InstagramCommentService
     }
 
     /**
-     * Por qué NO hay que responder este comentario, o null si sí hay que hacerlo.
+     * Por qué hay que dejar este comentario EN PAZ, o null si hay que atenderlo.
+     *
+     * Son los cortes que no dependen de la configuración del mensaje: cosas a
+     * las que no se le habla, pase lo que pase. Si alguno aplica, no sale ni el
+     * DM ni el aviso público.
      *
      * Devuelve el motivo en texto para guardarlo en la tabla: un "skipped" sin
      * explicación obliga a releer el código para entenderlo.
      *
      * @param  array<string, mixed> $value
      */
-    private function motivoParaOmitir(array $value, ?string $igsid, ?string $texto): ?string
+    private function motivoParaIgnorar(array $value, ?string $igsid): ?string
     {
         $config = InstagramCommentSetting::actual();
 
-        if (! $config->is_active) {
+        // Todo apagado: ni DM ni aviso. Se comprueban los dos porque son
+        // independientes -- se puede querer solo el aviso público.
+        if (! $config->is_active && ! $config->public_reply_active) {
             return 'La automatización está desactivada';
         }
 
         // Un comentario de la propia cuenta del negocio. Sin este corte, cada
         // vez que un agente responde un comentario el CRM le mandaría un DM de
-        // bienvenida a la propia empresa.
+        // bienvenida a la propia empresa -- y se respondería a sí mismo en
+        // público, en un bucle visible debajo del post.
         $cuentaPropia = $this->texto(config('services.meta.instagram_account_id'));
 
         if ($igsid !== null && $cuentaPropia !== null && $igsid === $cuentaPropia) {
@@ -170,8 +216,11 @@ class InstagramCommentService
         }
 
         // Respuestas a otros comentarios (hilos). `parent_id` presente significa
-        // que es una réplica dentro de un hilo, no un comentario nuevo al post,
-        // y el negocio quiere saludar a quien comenta la publicación.
+        // que es una réplica dentro de un hilo, no un comentario nuevo al post.
+        //
+        // Para el aviso público hay una razón extra y dura: la API cuelga las
+        // respuestas del comentario PADRE, así que responder dentro de un hilo
+        // publicaría el aviso debajo del comentario original, duplicándolo.
         if ($this->texto($value['parent_id'] ?? null) !== null) {
             return 'Es una respuesta dentro de un hilo, no un comentario al post';
         }
@@ -181,6 +230,22 @@ class InstagramCommentService
         // atribuir la conversación, y un chat sin contacto rompe la bandeja.
         if ($igsid === null) {
             return 'El webhook no trajo el id de quien comentó';
+        }
+
+        return null;
+    }
+
+    /**
+     * Por qué no sale el DM, o null si hay que enviarlo.
+     *
+     * Estos motivos son NUESTROS (está apagado, no hay texto, se llegó al tope)
+     * y por eso el aviso público ya se publicó antes de llegar acá: la persona
+     * comentó y merece una señal, aunque el privado no salga.
+     */
+    private function motivoParaNoEnviarDm(InstagramCommentSetting $config, ?string $texto): ?string
+    {
+        if (! $config->is_active) {
+            return 'El mensaje privado está desactivado';
         }
 
         if (! $config->coincide($texto)) {
@@ -207,6 +272,48 @@ class InstagramCommentService
         }
 
         return null;
+    }
+
+    /**
+     * Publica el aviso público debajo del comentario.
+     *
+     * Nunca lanza y nunca marca el registro como fallido: el aviso es un extra
+     * y el DM es lo que importa. Si esto falla, se guarda el motivo en su propia
+     * columna y el flujo sigue.
+     *
+     * El id de la respuesta publicada hace de marca de idempotencia: con un
+     * valor ahí, un reintento del webhook no vuelve a comentar debajo del post.
+     */
+    private function publicarAviso(
+        InstagramCommentSetting $config,
+        InstagramCommentReply $registro,
+        string $commentId,
+    ): void {
+        $aviso = $config->avisoPublico();
+
+        if ($aviso === null) {
+            return;
+        }
+
+        // Ya publicado en una entrega anterior del mismo webhook.
+        if ($registro->public_reply_id !== null) {
+            return;
+        }
+
+        $resultado = $this->instagram->replyToComment($commentId, $aviso);
+
+        if (! ($resultado['success'] ?? false)) {
+            $registro->forceFill([
+                'public_reply_error' => $this->mensajeDeError($resultado['error'] ?? null),
+            ])->save();
+
+            return;
+        }
+
+        $registro->forceFill([
+            'public_reply_id'    => $this->texto($resultado['reply_id'] ?? null),
+            'public_reply_error' => null,
+        ])->save();
     }
 
     /**

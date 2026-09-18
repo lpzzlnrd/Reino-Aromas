@@ -182,6 +182,27 @@
         previewTimer = setTimeout(pedirPreview, 350)
     })
 
+    /*
+     * Instagram corta los DM en 1000 caracteres; WhatsApp aguanta 4096. Una
+     * plantilla de 1500 es válida en uno e imposible en el otro, y hasta ahora
+     * eso solo se descubría cuando Meta rechazaba el envío con un error
+     * traducido al chino que el agente no podía leer.
+     *
+     * El aviso es ámbar y no bloquea el guardado: si la plantilla es solo de
+     * WhatsApp, 1500 caracteres son legítimos. Lo que hace falta es que quien
+     * escribe sepa a qué canal acaba de renunciar.
+     */
+    const MAX_INSTAGRAM = 1000
+
+    /** Si esta plantilla puede acabar en un chat de Instagram. */
+    const alcanzaInstagram = computed(
+        () => form.value.channel === '' || form.value.channel === 'instagram'
+    )
+
+    const excedeInstagram = computed(
+        () => alcanzaInstagram.value && form.value.body.length > MAX_INSTAGRAM
+    )
+
     /**
      * Construye el marcador de una variable.
      *
@@ -629,7 +650,33 @@
                                 />
                                 <div class="flex items-center justify-between">
                                     <p v-if="formErrors.body" class="text-xs text-red-500">{{ formErrors.body }}</p>
-                                    <span class="text-[10px] text-primary/30 ml-auto">{{ form.body.length }} / 4000</span>
+                                    <span
+                                        class="text-[10px] ml-auto"
+                                        :class="excedeInstagram ? 'text-amber-600 font-semibold' : 'text-primary/30'"
+                                    >{{ form.body.length }} / 4000</span>
+                                </div>
+
+                                <!-- Aviso de límite de Instagram.
+                                     No bloquea el guardado: 1500 caracteres son
+                                     legítimos en una plantilla de solo WhatsApp.
+                                     Lo que hace falta es avisar ANTES de que Meta
+                                     rechace el envío con un error ilegible. -->
+                                <div
+                                    v-if="excedeInstagram"
+                                    class="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2"
+                                >
+                                    <Alert class="w-4 h-4 shrink-0 mt-0.5" />
+                                    <p class="leading-relaxed">
+                                        Instagram solo permite <strong>1000 caracteres</strong> por mensaje y
+                                        este tiene <strong>{{ form.body.length }}</strong>.
+                                        <template v-if="form.channel === ''">
+                                            Si se envía por Instagram, fallará. Acórtalo o marca esta
+                                            plantilla como solo de WhatsApp.
+                                        </template>
+                                        <template v-else>
+                                            Acorta el texto para que pueda enviarse.
+                                        </template>
+                                    </p>
                                 </div>
                             </div>
 

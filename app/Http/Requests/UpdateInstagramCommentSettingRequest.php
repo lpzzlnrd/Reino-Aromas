@@ -17,6 +17,12 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
         return [
             'is_active' => ['sometimes', 'boolean'],
 
+            'public_reply_active' => ['sometimes', 'boolean'],
+
+            // 280 y no más: Instagram recorta los comentarios largos, y este es
+            // un aviso de una línea, no el mensaje.
+            'public_reply_text' => ['nullable', 'string', 'max:280'],
+
             'response_type' => [
                 'sometimes',
                 Rule::in([
@@ -73,6 +79,22 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
                 }
             }
 
+            // Lo mismo para el aviso público: encendido y sin texto publicaría
+            // un comentario vacío en nombre del negocio, debajo de su propio
+            // post y a la vista de todos.
+            $avisoActivo = $this->boolean('public_reply_active', $config->public_reply_active);
+
+            if ($avisoActivo) {
+                $avisoTexto = $this->input('public_reply_text', $config->public_reply_text);
+
+                if ($avisoTexto === null || trim((string) $avisoTexto) === '') {
+                    $validator->errors()->add(
+                        'public_reply_text',
+                        'Escribe el comentario que se publicará debajo del suyo.',
+                    );
+                }
+            }
+
             // Activar sin nada que enviar dejaría la automatización encendida y
             // muda: los comentarios se marcarían como omitidos y el negocio
             // creería que Meta no está enviando los webhooks.
@@ -114,6 +136,7 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
             'keywords.*.max'   => 'Cada palabra clave puede tener hasta 60 caracteres.',
             'daily_limit.max'  => 'El tope diario no puede pasar de 5000.',
             'response_text.max' => 'El mensaje no puede pasar de 900 caracteres.',
+            'public_reply_text.max' => 'El comentario público no puede pasar de 280 caracteres.',
         ];
     }
 }

@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * DM de bienvenida a quien comenta un post de Instagram.
+ * Respuesta automática a quien comenta un post de Instagram: el comentario
+ * público debajo del suyo y el DM privado.
  *
  * Lo que se prueba acá es lo que de verdad puede romperse:
  *
@@ -83,14 +84,30 @@ class InstagramCommentDmTest extends TestCase
         return $config;
     }
 
-    /** Meta acepta el envío. */
+    /**
+     * Meta acepta los dos envíos.
+     *
+     * Son endpoints distintos y hay que distinguirlos: el DM va a
+     * `{ig-id}/messages` y el comentario público a `{comment-id}/replies`. Un
+     * fake único los confundiría y el test pasaría sin probar nada.
+     */
     private function metaResponde(): void
     {
         Http::fake([
+            'graph.instagram.com/*/replies' => Http::response(['id' => 'reply-publicada'], 200),
             'graph.instagram.com/*' => Http::response([
                 'recipient_id' => '9988776655',
                 'message_id'   => 'mid.enviado',
             ], 200),
+        ]);
+    }
+
+    /** Activa también el aviso público. */
+    private function activarAvisoPublico(string $texto = 'Te escribimos al privado 💌'): void
+    {
+        InstagramCommentSetting::actual()->update([
+            'public_reply_active' => true,
+            'public_reply_text'   => $texto,
         ]);
     }
 
@@ -329,6 +346,132 @@ class InstagramCommentDmTest extends TestCase
             ->assertJsonPath('settings.daily_limit', 50);
 
         $this->assertTrue(InstagramCommentSetting::actual()->is_active);
+    }
+
+    public function test_publica_el_aviso_publico_y_manda_el_dm(): void
+    {
+        $this->activarConTexto('Mensaje privado de prueba');
+        $this->activarAvisoPublico('¡Gracias! Te escribimos al privado 💌');
+        $this->metaResponde();
+
+        $this->procesar($this->webhook());
+
+        // El aviso público va al nodo del COMENTARIO, con el texto en `message`.
+        Http::assertSent(function ($request): bool {
+            return str_contains($request->url(), '/comment-1/replies')
+                && ($request->data()['message'] ?? null) === '¡Gracias! Te escribimos al privado 💌';
+        });
+
+        // Y el DM sigue yendo por su propio endpoint.
+        Http::assertSent(function ($request): bool {
+            return str_contains($request->url(), '/messages')
+                && ($request->data()['recipient']['comment_id'] ?? null) === 'comment-1';
+        });
+
+        $registro = InstagramCommentReply::query()->first();
+        $this->assertSame('reply-publicada', $registro->public_reply_id);
+        $this->assertNull($registro->public_reply_error);
+        $this->assertSame(InstagramCommentReply::STATUS_SENT, $registro->status);
+    }
+
+    public function test_el_aviso_publico_funciona_sin_el_dm(): void
+    {
+        // Solo el aviso: el privado queda apagado. Son independientes.
+        $this->activarAvisoPublico();
+        $this->metaResponde();
+
+        $this->procesar($this->webhook());
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/replies'));
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/messages'));
+
+        $registro = InstagramCommentReply::query()->first();
+        $this->assertSame('reply-publicada', $registro->public_reply_id);
+        $this->assertSame(InstagramCommentReply::STATUS_SKIPPED, $registro->status);
+        $this->assertStringContainsString('privado está desactivado', (string) $registro->skip_reason);
+    }
+
+    public function test_el_aviso_publico_sale_aunque_se_alcance_el_tope_del_dm(): void
+    {
+        // La persona comentó: merece una señal aunque el privado no salga por
+        // un límite NUESTRO. Es la razón de que el aviso vaya primero.
+        $config = $this->activarConTexto();
+        $config->update(['daily_limit' => 1]);
+        $this->activarAvisoPublico();
+        $this->metaResponde();
+
+        $this->procesar($this->webhook(['id' => 'comment-a']));
+        $this->procesar($this->webhook(['id' => 'comment-b']));
+
+        $segundo = InstagramCommentReply::query()->where('comment_id', 'comment-b')->first();
+
+        $this->assertSame('reply-publicada', $segundo->public_reply_id);
+        $this->assertSame(InstagramCommentReply::STATUS_SKIPPED, $segundo->status);
+        $this->assertStringContainsString('tope diario', (string) $segundo->skip_reason);
+    }
+
+    public function test_un_fallo_del_aviso_publico_no_frena_el_dm(): void
+    {
+        $this->activarConTexto();
+        $this->activarAvisoPublico();
+
+        Http::fake([
+            'graph.instagram.com/*/replies' => Http::response([
+                'error' => ['message' => 'Cannot reply to a hidden comment.'],
+            ], 400),
+            'graph.instagram.com/*' => Http::response(['message_id' => 'mid.enviado'], 200),
+        ]);
+
+        $this->procesar($this->webhook());
+
+        $registro = InstagramCommentReply::query()->first();
+
+        // El aviso guarda su error en su propia columna...
+        $this->assertNull($registro->public_reply_id);
+        $this->assertStringContainsString('hidden comment', (string) $registro->public_reply_error);
+
+        // ...y el DM salió igual: son independientes.
+        $this->assertSame(InstagramCommentReply::STATUS_SENT, $registro->status);
+        $this->assertSame(1, Message::query()->count());
+    }
+
+    public function test_no_comenta_dos_veces_el_mismo_post(): void
+    {
+        $this->activarConTexto();
+        $this->activarAvisoPublico();
+        $this->metaResponde();
+
+        // Meta reintenta el webhook: el aviso duplicado quedaría visible debajo
+        // del post, que es el error más vergonzoso de todos.
+        $this->procesar($this->webhook());
+        $this->procesar($this->webhook());
+
+        Http::assertSentCount(2); // un /replies y un /messages, una sola vez cada uno
+        $this->assertSame(1, InstagramCommentReply::query()->count());
+    }
+
+    public function test_no_responde_en_publico_a_su_propia_cuenta(): void
+    {
+        $this->activarAvisoPublico();
+        Http::fake();
+
+        // Sin este corte la cuenta se respondería a sí misma debajo del post,
+        // en un bucle visible para todo el mundo.
+        $this->procesar($this->webhook([
+            'from' => ['id' => '17841407844220949', 'username' => 'reinoaromas'],
+        ]));
+
+        Http::assertNothingSent();
+    }
+
+    public function test_no_se_puede_activar_el_aviso_sin_texto(): void
+    {
+        $usuario = User::factory()->create(['role' => 'administrador', 'is_active' => true]);
+
+        $this->actingAs($usuario)
+            ->patchJson('/api/instagram/comment-settings', ['public_reply_active' => true])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['public_reply_text']);
     }
 
     public function test_los_mensajes_normales_siguen_funcionando(): void
