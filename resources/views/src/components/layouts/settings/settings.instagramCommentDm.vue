@@ -315,9 +315,16 @@
                     <p class="text-[10px] text-primary/40 text-right">{{ largo }}/900</p>
                 </div>
 
-                <!-- Menú de opciones: el DM llega con botones que el cliente
-                     toca, y cada uno responde por su cuenta. -->
                 <div v-else-if="tipo === 'menu'" class="flex flex-col gap-1.5">
+                    <!-- Menú de opciones: el DM llega con botones que el
+                         cliente toca, y cada uno responde por su cuenta.
+
+                         El comentario va DENTRO del bloque y no entre este y
+                         el anterior: Vue corta la cadena v-if/v-else-if con
+                         cualquier nodo en medio, y un comentario HTML cuenta
+                         como nodo. Puesto afuera, el v-else-if y el v-else
+                         quedaban huérfanos y al cambiar de tipo no se pintaba
+                         ninguno de los tres. -->
                     <select
                         v-model="menuId"
                         class="w-full text-sm text-primary bg-surface border border-primary/12 rounded-xl px-3 py-2.5 focus:outline-none focus:border-secondary/50 transition-colors cursor-pointer"
