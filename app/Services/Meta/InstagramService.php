@@ -5,6 +5,7 @@ namespace App\Services\Meta;
 use App\Models\Contact;
 use App\Models\Conversation;
 use App\Models\InstagramAutomation;
+use App\Models\InstagramQuickReplyMenu;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Services\ContactService;
@@ -450,6 +451,94 @@ class InstagramService
             'type'          => 'MensajeDemasiadoLargo',
             'code'          => 100,
             'error_subcode' => self::SUBCODIGO_MENSAJE_LARGO,
+        ];
+    }
+
+    /**
+     * Envía un mensaje con un menú de opciones (Quick Replies).
+     *
+     * Es lo más cercano a un WhatsApp Flow que ofrece Instagram: hasta 13
+     * burbujas sobre el teclado. Al tocar una, Meta dispara el mismo webhook
+     * `messaging_postbacks` que los Ice Breakers, así que el retorno ya está
+     * resuelto en handlePostback() y no hace falta nada nuevo para responder.
+     *
+     * Las burbujas viajan DENTRO del mensaje, no como una publicación aparte:
+     * por eso esto es un envío normal con una clave `quick_replies` más, y no
+     * una llamada al perfil como la sincronización de Ice Breakers.
+     *
+     * @param  list<array{content_type: string, title: string, payload: string}> $opciones
+     * @param  string|null $commentId Si viene, el DM se manda por el comentario
+     *                                (abre la ventana) en vez de por el IGSID.
+     * @return array{success: bool, message_id?: string|null, error?: mixed}
+     */
+    public function sendQuickReplies(
+        string $recipientIgsid,
+        string $text,
+        array $opciones,
+        ?string $commentId = null,
+    ): array {
+        if ($opciones === []) {
+            // Sin burbujas esto sería un mensaje de texto suelto, y mandarlo
+            // como si fuera un menú dejaría a la persona sin forma de
+            // responder salvo escribiendo. Quien llama decide si manda texto.
+            return [
+                'success' => false,
+                'error'   => [
+                    'message' => 'El menú no tiene opciones activas que enviar.',
+                    'type'    => 'MenuSinOpciones',
+                ],
+            ];
+        }
+
+        if (($largo = mb_strlen($text)) > self::MAX_CARACTERES_DM) {
+            Log::warning('[Instagram] Menú con texto demasiado largo, no se envió', [
+                'recipient' => $recipientIgsid,
+                'largo'     => $largo,
+            ]);
+
+            return ['success' => false, 'error' => $this->errorMensajeLargo($largo)];
+        }
+
+        // Meta rechaza el mensaje ENTERO si sobra una burbuja, así que se
+        // recorta acá: es preferible un menú de 13 opciones a ninguno.
+        $opciones = array_slice($opciones, 0, InstagramQuickReplyMenu::MAX_OPCIONES);
+
+        $igAccountId = $this->credentials->obtener('instagram_account_id');
+
+        $accessToken = $this->credentials->obtener('instagram_access_token')
+            ?: $this->credentials->obtener('access_token');
+
+        // comment_id cuando el menú es la respuesta a un comentario: ahí la
+        // ventana la abre el comentario público y el IGSID todavía no sirve
+        // como destinatario. Ver sendCommentReply().
+        $recipient = $commentId !== null
+            ? ['comment_id' => $commentId]
+            : ['id' => $recipientIgsid];
+
+        $response = Http::withToken($accessToken)
+            ->post($this->credentials->urlGraphInstagram("{$igAccountId}/messages"), [
+                'recipient' => $recipient,
+                'message'   => [
+                    'text'          => $text,
+                    'quick_replies' => $opciones,
+                ],
+            ]);
+
+        if ($response->failed()) {
+            $error = $response->json('error', []);
+            Log::error('[Instagram] Error al enviar el menú de opciones', [
+                'recipient'  => $recipientIgsid,
+                'comment_id' => $commentId,
+                'opciones'   => count($opciones),
+                'error'      => $error,
+            ]);
+
+            return ['success' => false, 'error' => $this->errorLegible($error, $text)];
+        }
+
+        return [
+            'success'    => true,
+            'message_id' => $response->json('message_id'),
         ];
     }
 

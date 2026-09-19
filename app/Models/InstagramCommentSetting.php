@@ -16,12 +16,22 @@ class InstagramCommentSetting extends Model
     public const RESPONSE_TEMPLATE = 'template';
     public const RESPONSE_TEXT     = 'text';
 
+    /**
+     * El DM es un menú de opciones en vez de un mensaje suelto.
+     *
+     * Es el modo que convierte el comentario en una conversación guiada: la
+     * persona toca una burbuja y recibe la respuesta de esa opción, sin que
+     * intervenga un agente.
+     */
+    public const RESPONSE_MENU = 'menu';
+
     protected $fillable = [
         'is_active',
         'public_reply_active',
         'public_reply_text',
         'response_type',
         'template_id',
+        'quick_reply_menu_id',
         'response_text',
         'keywords',
         'daily_limit',
@@ -73,10 +83,43 @@ class InstagramCommentSetting extends Model
             self::RESPONSE_TEMPLATE => $this->template?->is_active === true
                 ? $this->template->body
                 : null,
+            // El cuerpo del menú es el texto que acompaña a las burbujas. Se
+            // devuelve por acá para que el servicio de comentarios no tenga que
+            // preguntar de qué modo es antes de saber si hay algo que mandar.
+            self::RESPONSE_MENU     => $this->quickReplyMenu?->estaCompleto() === true
+                ? $this->quickReplyMenu->body
+                : null,
             default => null,
         };
 
         return $texto !== null && trim($texto) !== '' ? $texto : null;
+    }
+
+    /** El menú a enviar si response_type = 'menu'. */
+    public function quickReplyMenu(): BelongsTo
+    {
+        return $this->belongsTo(InstagramQuickReplyMenu::class, 'quick_reply_menu_id');
+    }
+
+    /**
+     * Las burbujas a enviar, o lista vacía si este DM no es un menú.
+     *
+     * Vacío también cuando el menú se borró, se desactivó o se quedó sin
+     * opciones activas: el servicio lo trata como "no hay nada que mandar" y
+     * registra el motivo, en vez de enviar un texto sin las opciones que lo
+     * hacían útil.
+     *
+     * @return list<array{content_type: string, title: string, payload: string}>
+     */
+    public function opcionesDeMenu(): array
+    {
+        if ($this->response_type !== self::RESPONSE_MENU) {
+            return [];
+        }
+
+        return $this->quickReplyMenu?->estaCompleto() === true
+            ? $this->quickReplyMenu->opcionesParaMeta()
+            : [];
     }
 
     /**
