@@ -86,6 +86,7 @@ class InstagramCommentSettingController extends Controller
             'public_reply_text'   => $config->public_reply_text,
             'response_type'       => $config->response_type,
             'template_id'         => $config->template_id,
+            'quick_reply_menu_id' => $config->quick_reply_menu_id,
             'template'            => $config->template !== null ? [
                 'id'        => $config->template->id,
                 'name'      => $config->template->name,
