@@ -80,21 +80,8 @@
      */
     const clavesTexto = ref('')
 
-    watch(
-        settings,
-        (valor) => {
-            if (valor === null) return
-
-            tipo.value = valor.response_type
-            texto.value = valor.response_text ?? ''
-            plantillaId.value = valor.template_id
-            menuId.value = valor.quick_reply_menu_id ?? null
-            tope.value = valor.daily_limit
-            avisoTexto.value = valor.public_reply_text ?? ''
-            clavesTexto.value = (valor.keywords ?? []).join(', ')
-        },
-        { immediate: true },
-    )
+    /** Ya se copió el estado del servidor al borrador al menos una vez. */
+    const iniciado = ref(false)
 
     /** Solo las activas: una plantilla desactivada no responde nada. */
     const plantillasDisponibles = computed(() => props.plantillas.filter((t) => t.is_active))
@@ -127,6 +114,42 @@
             claves.value.join(',') !== (settings.value.keywords ?? []).join(',')
         )
     })
+
+    /*
+     * Sincroniza el borrador con lo que llega del servidor.
+     *
+     * Va DESPUÉS de hayCambios a propósito: con { immediate: true } el watch
+     * corre en esta misma línea, y declararlo antes lo haría leer hayCambios
+     * en su zona muerta temporal (ReferenceError al montar).
+     */
+    watch(
+        settings,
+        (valor) => {
+            if (valor === null) return
+
+            /*
+             * Solo se pisa el borrador la primera vez y cuando no hay nada sin
+             * guardar.
+             *
+             * guardar() llama a cargar(), que reemplaza el objeto `settings`
+             * entero. Sin esta guarda, cualquier recarga devolvía los campos al
+             * valor del servidor y se perdía lo que el usuario acababa de
+             * elegir.
+             */
+            if (iniciado.value && hayCambios.value) return
+
+            iniciado.value = true
+
+            tipo.value = valor.response_type
+            texto.value = valor.response_text ?? ''
+            plantillaId.value = valor.template_id
+            menuId.value = valor.quick_reply_menu_id ?? null
+            tope.value = valor.daily_limit
+            avisoTexto.value = valor.public_reply_text ?? ''
+            clavesTexto.value = (valor.keywords ?? []).join(', ')
+        },
+        { immediate: true },
+    )
 
     const enviar = (): void => {
         guardar({
@@ -178,7 +201,15 @@
             </p>
         </div>
 
-        <p v-if="cargando" class="text-sm text-primary/40 py-4">Cargando...</p>
+        <!-- La condición es `settings === null` y NO `cargando`: guardar llama
+             a cargar(), que pone cargando en true por unos milisegundos. Con
+             v-if="cargando" la sección entera se desmontaba en cada guardado y
+             en cada recarga —el formulario desaparecía y volvía— que es
+             exactamente el síntoma de "cambio de tipo y se va todo".
+
+             Con settings ya cargado el formulario se queda en pantalla y solo
+             los botones se deshabilitan con `guardando`. -->
+        <p v-if="settings === null && cargando" class="text-sm text-primary/40 py-4">Cargando...</p>
 
         <template v-else-if="settings">
 
