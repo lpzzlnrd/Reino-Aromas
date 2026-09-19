@@ -17,7 +17,7 @@ import api from '@/lib/axios'
  * delante. Es la trampa que ya mordió una vez en useInstagramAutomations.
  */
 
-export type CommentResponseType = 'template' | 'text'
+export type CommentResponseType = 'template' | 'text' | 'menu'
 
 export type CommentDmSettings = {
     id: number
@@ -28,6 +28,8 @@ export type CommentDmSettings = {
     public_reply_text: string | null
     response_type: CommentResponseType
     template_id: number | null
+    /** El menú de opciones a enviar si response_type = 'menu'. */
+    quick_reply_menu_id: number | null
     template: { id: number; name: string; is_active: boolean } | null
     response_text: string | null
     /** Vacío = responder a todos los comentarios. */
@@ -65,6 +67,7 @@ export type CommentDmPayload = {
     public_reply_text?: string | null
     response_type?: CommentResponseType
     template_id?: number | null
+    quick_reply_menu_id?: number | null
     response_text?: string | null
     keywords?: string[]
     daily_limit?: number

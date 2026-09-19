@@ -147,7 +147,16 @@ class InstagramCommentService
         // el comentario público, no una conversación previa. Enviar a
         // recipient.id fallaría con "no messaging window" para alguien que
         // nunca escribió al negocio.
-        $resultado = $this->instagram->sendCommentReply($commentId, $cuerpo);
+        //
+        // Con menú, las burbujas viajan en ESTE mensaje y no en uno posterior:
+        // Meta permite un solo DM por comentario, así que un segundo envío con
+        // las opciones se rechazaría y la persona se quedaría con el texto y
+        // sin forma de responder salvo escribiendo.
+        $opciones = $config->opcionesDeMenu();
+
+        $resultado = $opciones !== []
+            ? $this->instagram->sendQuickReplies($igsid, $cuerpo, $opciones, $commentId)
+            : $this->instagram->sendCommentReply($commentId, $cuerpo);
 
         if (! ($resultado['success'] ?? false)) {
             $registro->forceFill([
@@ -156,6 +165,13 @@ class InstagramCommentService
             ])->save();
 
             return;
+        }
+
+        // Solo se cuenta el envío que salió: el contador sirve para que el
+        // admin vea qué menú trabaja de verdad, y sumar los fallidos lo haría
+        // mentir justo cuando algo va mal.
+        if ($opciones !== []) {
+            $config->quickReplyMenu?->increment('sends');
         }
 
         // Recién acá se toca el CRM. El orden importa: si se creara la

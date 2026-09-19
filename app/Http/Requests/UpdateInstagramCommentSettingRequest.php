@@ -28,10 +28,17 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
                 Rule::in([
                     InstagramCommentSetting::RESPONSE_TEMPLATE,
                     InstagramCommentSetting::RESPONSE_TEXT,
+                    InstagramCommentSetting::RESPONSE_MENU,
                 ]),
             ],
 
             'template_id' => ['nullable', 'integer', 'exists:templates,id'],
+
+            'quick_reply_menu_id' => [
+                'nullable',
+                'integer',
+                'exists:instagram_quick_reply_menus,id',
+            ],
 
             // 900 y no 1000: el DM lo manda Meta como mensaje normal y los
             // textos larguísimos se cortan en el cliente. Un saludo de
@@ -76,6 +83,30 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
                         'template_id',
                         'Elige la plantilla que se enviará por privado.',
                     );
+                }
+            }
+
+            if ($tipo === InstagramCommentSetting::RESPONSE_MENU) {
+                $menuId = $this->input('quick_reply_menu_id', $config->quick_reply_menu_id);
+
+                if ($menuId === null) {
+                    $validator->errors()->add(
+                        'quick_reply_menu_id',
+                        'Elige el menú de opciones que se enviará por privado.',
+                    );
+                } else {
+                    // Un menú sin opciones activas se enviaría como un texto
+                    // suelto: la persona vería el mensaje y ninguna burbuja que
+                    // tocar. Como Meta permite UN solo DM por comentario, no
+                    // hay segunda oportunidad de mandarle las opciones.
+                    $menu = \App\Models\InstagramQuickReplyMenu::with('opciones')->find($menuId);
+
+                    if ($menu !== null && ! $menu->estaCompleto()) {
+                        $validator->errors()->add(
+                            'quick_reply_menu_id',
+                            'Ese menú no tiene opciones activas: agrégale al menos una antes de usarlo.',
+                        );
+                    }
                 }
             }
 

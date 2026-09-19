@@ -19,6 +19,16 @@ class InstagramAutomation extends Model
     /** Entrada del menú siempre visible dentro del chat. */
     public const KIND_MENU_ITEM = 'menu_item';
 
+    /**
+     * Opción de un menú de respuestas rápidas (Quick Reply).
+     *
+     * A diferencia de los otros dos, no se publica en el perfil de Meta: viaja
+     * dentro de un mensaje concreto y por eso pertenece a un `menu_group_id`.
+     * El retorno es idéntico — Meta manda el mismo webhook de postback — así
+     * que handlePostback() las resuelve sin saber de qué kind vienen.
+     */
+    public const KIND_QUICK_REPLY = 'quick_reply';
+
     public const RESPONSE_TEMPLATE = 'template';
     public const RESPONSE_TEXT     = 'text';
     public const RESPONSE_HANDOFF  = 'handoff';
@@ -36,6 +46,7 @@ class InstagramAutomation extends Model
 
     protected $fillable = [
         'kind',
+        'menu_group_id',
         'title',
         'payload',
         'response_type',
@@ -59,6 +70,12 @@ class InstagramAutomation extends Model
     public function template(): BelongsTo
     {
         return $this->belongsTo(Template::class);
+    }
+
+    /** El menú al que pertenece, si es una opción de menú. */
+    public function menuGroup(): BelongsTo
+    {
+        return $this->belongsTo(InstagramQuickReplyMenu::class, 'menu_group_id');
     }
 
     public function scopeActive(Builder $query): Builder
@@ -106,5 +123,19 @@ class InstagramAutomation extends Model
                 : null,
             default => null,
         };
+    }
+
+    /**
+     * El botón existe pero no puede responder nada.
+     *
+     * Pasa cuando apunta a una plantilla que se borró o se desactivó: la
+     * persona lo toca y no recibe nada, y el caso queda esperando a un agente
+     * que no sabe que existe. handoff NO cuenta como roto — ahí no responder
+     * es justamente lo configurado.
+     */
+    public function estaRota(): bool
+    {
+        return $this->response_type !== self::RESPONSE_HANDOFF
+            && ($this->respuesta() === null || trim($this->respuesta()) === '');
     }
 }

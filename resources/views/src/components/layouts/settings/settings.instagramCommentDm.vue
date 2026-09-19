@@ -2,6 +2,7 @@
     import { computed, onMounted, ref, watch } from 'vue'
     import Info from '../../icons/icon.info.vue'
     import { useInstagramCommentDm, type CommentResponseType } from '@/hooks/useInstagramCommentDm'
+    import { useInstagramQuickReplyMenus } from '@/hooks/useInstagramQuickReplyMenus'
 
     /*
      * Respuesta automática a quien comenta un post: el comentario público
@@ -50,8 +51,27 @@
     const tipo = ref<CommentResponseType>('text')
     const texto = ref('')
     const plantillaId = ref<number | null>(null)
+    const menuId = ref<number | null>(null)
     const tope = ref(100)
     const avisoTexto = ref('')
+
+    /*
+     * Los menús se cargan acá y no llegan por prop como las plantillas: la
+     * pantalla que monta este componente no los pide (los pide la sección de
+     * menús, que es hermana y no padre), y este selector los necesita para
+     * ofrecer algo.
+     */
+    const { menus, cargar: cargarMenus } = useInstagramQuickReplyMenus()
+
+    onMounted(cargarMenus)
+
+    /*
+     * Solo los menús que se pueden enviar: activos y con alguna opción activa.
+     * Ofrecer uno vacío dejaría elegir algo que llegaría al cliente sin botones
+     * — y como Instagram permite UN solo DM por comentario, sin arreglo posible
+     * para esa persona.
+     */
+    const menusDisponibles = computed(() => menus.value.filter((m) => m.is_complete))
 
     /*
      * Las palabras clave se editan como una sola línea separada por comas: es
@@ -68,6 +88,7 @@
             tipo.value = valor.response_type
             texto.value = valor.response_text ?? ''
             plantillaId.value = valor.template_id
+            menuId.value = valor.quick_reply_menu_id ?? null
             tope.value = valor.daily_limit
             avisoTexto.value = valor.public_reply_text ?? ''
             clavesTexto.value = (valor.keywords ?? []).join(', ')
@@ -77,6 +98,13 @@
 
     /** Solo las activas: una plantilla desactivada no responde nada. */
     const plantillasDisponibles = computed(() => props.plantillas.filter((t) => t.is_active))
+
+    const etiquetaTipo = (t: CommentResponseType): string => {
+        if (t === 'text') return 'Texto fijo'
+        if (t === 'template') return 'Plantilla'
+
+        return 'Menú de opciones'
+    }
 
     const claves = computed(() =>
         clavesTexto.value
@@ -93,6 +121,7 @@
             tipo.value !== settings.value.response_type ||
             texto.value !== (settings.value.response_text ?? '') ||
             plantillaId.value !== settings.value.template_id ||
+            menuId.value !== (settings.value.quick_reply_menu_id ?? null) ||
             tope.value !== settings.value.daily_limit ||
             avisoTexto.value !== (settings.value.public_reply_text ?? '') ||
             claves.value.join(',') !== (settings.value.keywords ?? []).join(',')
@@ -104,6 +133,7 @@
             response_type: tipo.value,
             response_text: tipo.value === 'text' ? texto.value : null,
             template_id: tipo.value === 'template' ? plantillaId.value : null,
+            quick_reply_menu_id: tipo.value === 'menu' ? menuId.value : null,
             public_reply_text: avisoTexto.value,
             keywords: claves.value,
             daily_limit: tope.value,
@@ -261,7 +291,7 @@
 
                     <div class="flex gap-2">
                         <button
-                            v-for="opcion in (['text', 'template'] as CommentResponseType[])"
+                            v-for="opcion in (['text', 'template', 'menu'] as CommentResponseType[])"
                             :key="opcion"
                             @click="tipo = opcion"
                             class="text-xs font-semibold px-3 py-1.5 rounded-full border transition-all cursor-pointer"
@@ -269,7 +299,7 @@
                                 ? 'bg-primary text-white border-primary'
                                 : 'bg-surface text-primary/60 border-primary/15 hover:border-primary/40'"
                         >
-                            {{ opcion === 'text' ? 'Texto fijo' : 'Plantilla' }}
+                            {{ etiquetaTipo(opcion) }}
                         </button>
                     </div>
                 </div>
@@ -283,6 +313,29 @@
                         class="w-full text-sm text-primary bg-surface border border-primary/12 rounded-xl px-3 py-2.5 focus:outline-none focus:border-secondary/50 transition-colors resize-y"
                     />
                     <p class="text-[10px] text-primary/40 text-right">{{ largo }}/900</p>
+                </div>
+
+                <!-- Menú de opciones: el DM llega con botones que el cliente
+                     toca, y cada uno responde por su cuenta. -->
+                <div v-else-if="tipo === 'menu'" class="flex flex-col gap-1.5">
+                    <select
+                        v-model="menuId"
+                        class="w-full text-sm text-primary bg-surface border border-primary/12 rounded-xl px-3 py-2.5 focus:outline-none focus:border-secondary/50 transition-colors cursor-pointer"
+                    >
+                        <option :value="null">Elige un menú...</option>
+                        <option v-for="m in menusDisponibles" :key="m.id" :value="m.id">
+                            {{ m.name }} ({{ m.options.filter((o) => o.is_active).length }} opciones)
+                        </option>
+                    </select>
+
+                    <p v-if="menusDisponibles.length === 0" class="text-[10px] text-amber-700">
+                        No hay menús listos. Créalos más abajo, en «Menús de opciones».
+                    </p>
+
+                    <p v-else class="text-[10px] text-primary/40 leading-relaxed">
+                        El cliente recibe el mensaje con sus botones y elige. Cada opción
+                        responde sola, sin esperar a un agente.
+                    </p>
                 </div>
 
                 <div v-else class="flex flex-col gap-1.5">

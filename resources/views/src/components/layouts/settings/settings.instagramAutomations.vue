@@ -6,6 +6,7 @@
     import Close from '../../icons/icon.close.vue'
     import Info from '../../icons/icon.info.vue'
     import CommentDm from './settings.instagramCommentDm.vue'
+    import QuickReplyMenus from './settings.instagramQuickReplyMenus.vue'
     import { useModal } from '@/composables/useModal'
     import {
         useInstagramAutomations,
@@ -418,6 +419,16 @@
                  A diferencia de los botones, esto NO se publica en Meta: el
                  mensaje se manda al recibir el webhook del comentario. -->
             <CommentDm :plantillas="plantillas" />
+
+            <div class="w-full max-w-3xl border-t border-primary/8" />
+
+            <!-- Menus de opciones (Quick Replies).
+
+                 Van DESPUES del DM por comentario a proposito: el caso de uso
+                 que los estrena es justamente ese ("alguien comenta, le llega
+                 un menu"), y el selector de menu de esa seccion se entiende
+                 mejor cuando ya se vio que existen. -->
+            <QuickReplyMenus :plantillas="plantillas" />
         </div>
 
         <!-- Modal de alta / edición -->

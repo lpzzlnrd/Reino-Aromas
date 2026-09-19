@@ -16,6 +16,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\InstagramAutomationController;
 use App\Http\Controllers\InstagramCommentSettingController;
+use App\Http\Controllers\InstagramQuickReplyMenuController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UserController;
@@ -176,6 +177,31 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::post('/', [InstagramAutomationController::class, 'store'])->name('store');
         Route::patch('/{automation}', [InstagramAutomationController::class, 'update'])->name('update');
         Route::delete('/{automation}', [InstagramAutomationController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |-------------------------------------------------------------------------
+    | Menus de opciones de Instagram (Quick Replies)
+    |
+    | Un mensaje con hasta 13 burbujas: al tocar una, Meta dispara el mismo
+    | webhook de postback que los Ice Breakers y handlePostback() responde. Por
+    | eso no hay /sync -- un menu NO se publica en el perfil de Meta, viaja
+    | dentro de un mensaje concreto.
+    |
+    | Las opciones cuelgan del menu para que la ruta diga a que menu pertenece
+    | cada burbuja: son la misma tabla que los otros botones y sin el prefijo
+    | haria falta un filtro por kind en cada llamada.
+    |-------------------------------------------------------------------------
+    */
+    Route::prefix('instagram/quick-reply-menus')->name('api.instagram.quick-reply-menus.')->group(function (): void {
+        Route::get('/', [InstagramQuickReplyMenuController::class, 'index'])->name('index');
+        Route::post('/', [InstagramQuickReplyMenuController::class, 'store'])->name('store');
+        Route::patch('/{menu}', [InstagramQuickReplyMenuController::class, 'update'])->name('update');
+        Route::delete('/{menu}', [InstagramQuickReplyMenuController::class, 'destroy'])->name('destroy');
+
+        Route::post('/{menu}/options', [InstagramQuickReplyMenuController::class, 'storeOption'])->name('options.store');
+        Route::patch('/{menu}/options/{option}', [InstagramQuickReplyMenuController::class, 'updateOption'])->name('options.update');
+        Route::delete('/{menu}/options/{option}', [InstagramQuickReplyMenuController::class, 'destroyOption'])->name('options.destroy');
     });
 
     /*
