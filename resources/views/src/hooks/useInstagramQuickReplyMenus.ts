@@ -13,8 +13,12 @@ import type { ResponseType } from './useInstagramAutomations'
  * A diferencia de los Ice Breakers, un menú NO se publica en el perfil de
  * Meta: viaja dentro de un mensaje concreto. Por eso acá no hay sincronizar().
  *
- * El estado vive DENTRO de la función, igual que useInstagramAutomations: solo
- * la vista de ajustes lo usa y no hay nada que compartir entre componentes.
+ * El estado vive FUERA de la función, como en useAssignableUsers y useStates.
+ * Acá es obligatorio y no una preferencia: dos componentes hermanos leen esta
+ * misma lista —el selector de «Respuesta a quien comenta» y la sección de
+ * menús— y con el estado dentro cada uno se llevaba su copia. Crear un menú
+ * abajo no aparecía nunca en el selector de arriba, porque quien recargaba era
+ * la otra instancia.
  */
 
 export type QuickReplyOption = {
@@ -62,14 +66,17 @@ export type OptionPayload = {
     is_active?: boolean
 }
 
+const menus = ref<QuickReplyMenu[]>([])
+const limits = ref({ opciones: 13, titulo: 20, cuerpo: 1000 })
+
+const cargando = ref(false)
+const guardando = ref(false)
+const error = ref<string | null>(null)
+
+/** La petición de carga en curso, para que dos componentes no pidan lo mismo. */
+let enVuelo: Promise<void> | null = null
+
 export function useInstagramQuickReplyMenus() {
-    const menus = ref<QuickReplyMenu[]>([])
-    const limits = ref({ opciones: 13, titulo: 20, cuerpo: 1000 })
-
-    const cargando = ref(false)
-    const guardando = ref(false)
-    const error = ref<string | null>(null)
-
     /**
      * Menús que se enviarían mal si se usaran ahora mismo.
      *
@@ -86,20 +93,36 @@ export function useInstagramQuickReplyMenus() {
         () => menus.value.filter((m) => m.broken_options > 0),
     )
 
+    /**
+     * Trae la lista del servidor.
+     *
+     * Si ya hay una petición en vuelo devuelve ESA en vez de lanzar otra: los
+     * dos componentes que usan el hook montan a la vez y cada uno llama a
+     * cargar() en su onMounted, que sin esto serían dos GET idénticos en el
+     * mismo tick. Las recargas posteriores (tras crear o editar) sí piden de
+     * nuevo, porque para entonces `enVuelo` ya volvió a null.
+     */
     const cargar = async (): Promise<void> => {
+        if (enVuelo !== null) return await enVuelo
+
         cargando.value = true
         error.value = null
 
-        try {
-            const { data } = await api.get('/instagram/quick-reply-menus')
+        enVuelo = (async (): Promise<void> => {
+            try {
+                const { data } = await api.get('/instagram/quick-reply-menus')
 
-            menus.value = data.menus ?? []
-            limits.value = data.limits ?? limits.value
-        } catch (e: unknown) {
-            error.value = mensajeDeError(e, 'No se pudieron cargar los menús.')
-        } finally {
-            cargando.value = false
-        }
+                menus.value = data.menus ?? []
+                limits.value = data.limits ?? limits.value
+            } catch (e: unknown) {
+                error.value = mensajeDeError(e, 'No se pudieron cargar los menús.')
+            } finally {
+                cargando.value = false
+                enVuelo = null
+            }
+        })()
+
+        return await enVuelo
     }
 
     const crearMenu = async (datos: MenuPayload): Promise<boolean> => {
