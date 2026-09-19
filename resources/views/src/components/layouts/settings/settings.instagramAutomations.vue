@@ -52,7 +52,15 @@
     const cargarPlantillas = async (): Promise<void> => {
         try {
             const res = await api.get('/templates')
-            plantillas.value = res.data?.data ?? res.data ?? []
+
+            // El endpoint responde { templates: [...] }, como ya lo lee
+            // templates.home.vue. Antes se intentaba `res.data?.data ??
+            // res.data`: el primero no existe y el segundo es el OBJETO de la
+            // respuesta, asi que `plantillas` terminaba siendo un objeto y
+            // cualquier .filter() sobre el reventaba el render del hijo
+            // ("t.plantillas.filter is not a function") en cuanto se pintaba
+            // el bloque de Plantilla.
+            plantillas.value = Array.isArray(res.data?.templates) ? res.data.templates : []
         } catch {
             // El selector queda vacio y el aviso de "sin respuesta" hace el
             // resto: no vale la pena romper la vista por esto.

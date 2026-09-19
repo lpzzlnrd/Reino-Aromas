@@ -46,8 +46,12 @@
 
     onMounted(() => cargar())
 
-    /** Solo las activas: una plantilla desactivada no responde nada. */
-    const plantillasDisponibles = computed(() => props.plantillas.filter((t) => t.is_active))
+    /** Solo las activas; tolerante al prop mal formado por el mismo motivo
+     *  que en settings.instagramCommentDm.vue: el selector de plantilla vive
+     *  detras de un v-if y reventaba al abrirlo, no al montar. */
+    const plantillasDisponibles = computed(
+        () => (Array.isArray(props.plantillas) ? props.plantillas : []).filter((t) => t.is_active),
+    )
 
     /*
      * El menú desplegado, por ID y no por objeto.
