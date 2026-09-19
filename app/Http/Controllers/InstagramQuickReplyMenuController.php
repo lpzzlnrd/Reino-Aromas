@@ -35,8 +35,11 @@ class InstagramQuickReplyMenuController extends Controller
      */
     public function index(): JsonResponse
     {
+        // `body` es obligatorio en la lista de columnas: InstagramAutomation::
+        // respuesta() lo lee para decidir si la opción responde algo, y sin él
+        // estaRota() daba true para TODAS las opciones de tipo plantilla.
         $menus = InstagramQuickReplyMenu::query()
-            ->with(['opciones.template:id,name,is_active'])
+            ->with(['opciones.template:id,name,body,is_active'])
             ->orderBy('name')
             ->get();
 
@@ -186,7 +189,7 @@ class InstagramQuickReplyMenuController extends Controller
      */
     private function serializar(InstagramQuickReplyMenu $menu): array
     {
-        $menu->loadMissing('opciones.template:id,name,is_active');
+        $menu->loadMissing('opciones.template:id,name,body,is_active');
 
         return [
             'id'        => $menu->id,
