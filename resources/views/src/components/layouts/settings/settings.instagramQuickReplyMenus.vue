@@ -49,12 +49,23 @@
     /** Solo las activas: una plantilla desactivada no responde nada. */
     const plantillasDisponibles = computed(() => props.plantillas.filter((t) => t.is_active))
 
-    /** El menú abierto en el panel de edición. null = ninguno. */
-    const menuAbierto = ref<QuickReplyMenu | null>(null)
+    /*
+     * El menú desplegado, por ID y no por objeto.
+     *
+     * Guardar el objeto lo desincroniza: cada alta o edición de opción recarga
+     * la lista entera desde el servidor (que recalcula is_complete y
+     * broken_options), y el objeto guardado quedaría apuntando a una copia
+     * vieja que ya no está en `menus`.
+     */
+    const menuAbiertoId = ref<number | null>(null)
 
     const menuActual = computed(
-        () => menus.value.find((m) => m.id === menuAbierto.value?.id) ?? null,
+        () => menus.value.find((m) => m.id === menuAbiertoId.value) ?? null,
     )
+
+    const alternarMenu = (menu: QuickReplyMenu): void => {
+        menuAbiertoId.value = menuAbiertoId.value === menu.id ? null : menu.id
+    }
 
     // --- Modal de menú (crear / renombrar) ---
 
@@ -176,7 +187,7 @@
         const id = borrandoMenu.value.id
         const ok = await eliminarMenu(id)
 
-        if (ok && menuAbierto.value?.id === id) menuAbierto.value = null
+        if (ok && menuAbiertoId.value === id) menuAbiertoId.value = null
 
         borrandoMenu.value = null
     }
@@ -250,8 +261,8 @@
                 v-for="m in menus"
                 :key="m.id"
                 class="glass-card px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-secondary/30 transition-colors"
-                :class="{ 'opacity-50': !m.is_active, 'border-secondary/40': menuAbierto?.id === m.id }"
-                @click="menuAbierto = menuAbierto?.id === m.id ? null : m"
+                :class="{ 'opacity-50': !m.is_active, 'border-secondary/40': menuAbiertoId === m.id }"
+                @click="alternarMenu(m)"
             >
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-semibold text-primary truncate">{{ m.name }}</p>
@@ -398,11 +409,10 @@
 
         <!-- Modal: crear / editar menú -->
         <Teleport to="body">
-            <div
-                v-if="modalMenu"
-                class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/20 backdrop-blur-sm"
-            >
-                <div ref="panelMenu" class="glass-card w-full max-w-lg p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div v-if="modalMenu" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" @click="cerrarModalMenu" />
+
+                <div ref="panelMenu" class="relative glass-card w-full max-w-lg p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
                     <div class="flex items-center justify-between gap-4">
                         <h3 class="font-primary text-xl text-primary">
                             {{ editandoMenu ? 'Editar menú' : 'Nuevo menú' }}
@@ -466,11 +476,10 @@
 
         <!-- Modal: crear / editar opción -->
         <Teleport to="body">
-            <div
-                v-if="modalOpcion"
-                class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/20 backdrop-blur-sm"
-            >
-                <div ref="panelOpcion" class="glass-card w-full max-w-lg p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div v-if="modalOpcion" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" @click="cerrarModalOpcion" />
+
+                <div ref="panelOpcion" class="relative glass-card w-full max-w-lg p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
                     <div class="flex items-center justify-between gap-4">
                         <h3 class="font-primary text-xl text-primary">
                             {{ editandoOpcion ? 'Editar opción' : 'Nueva opción' }}
@@ -562,11 +571,10 @@
 
         <!-- Confirmación: borrar menú -->
         <Teleport to="body">
-            <div
-                v-if="borrandoMenu"
-                class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/20 backdrop-blur-sm"
-            >
-                <div class="glass-card w-full max-w-sm p-6 flex flex-col gap-3">
+            <div v-if="borrandoMenu" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" />
+
+                <div class="relative glass-card w-full max-w-sm p-6 flex flex-col gap-3">
                     <h3 class="font-primary text-lg text-primary">¿Eliminar «{{ borrandoMenu.name }}»?</h3>
                     <p class="text-xs text-primary/55 leading-relaxed">
                         Sus opciones dejan de estar agrupadas, pero no se borran: pueden
@@ -588,11 +596,10 @@
 
         <!-- Confirmación: borrar opción -->
         <Teleport to="body">
-            <div
-                v-if="borrandoOpcion"
-                class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/20 backdrop-blur-sm"
-            >
-                <div class="glass-card w-full max-w-sm p-6 flex flex-col gap-3">
+            <div v-if="borrandoOpcion" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-primary/30 backdrop-blur-sm" />
+
+                <div class="relative glass-card w-full max-w-sm p-6 flex flex-col gap-3">
                     <h3 class="font-primary text-lg text-primary">¿Eliminar «{{ borrandoOpcion.title }}»?</h3>
                     <p class="text-xs text-primary/55 leading-relaxed">
                         Quien ya haya recibido este menú y toque el botón no recibirá nada.
