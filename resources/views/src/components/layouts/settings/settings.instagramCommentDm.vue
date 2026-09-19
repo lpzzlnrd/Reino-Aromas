@@ -83,8 +83,19 @@
     /** Ya se copió el estado del servidor al borrador al menos una vez. */
     const iniciado = ref(false)
 
-    /** Solo las activas: una plantilla desactivada no responde nada. */
-    const plantillasDisponibles = computed(() => props.plantillas.filter((t) => t.is_active))
+    /*
+     * Solo las activas: una plantilla desactivada no responde nada.
+     *
+     * El Array.isArray NO sobra: este computed solo se evalua cuando el
+     * template pinta el bloque de «Plantilla», asi que un prop mal formado no
+     * explotaba al montar sino al cambiar de tipo -- y como el error sube por
+     * el render, se llevaba por delante la seccion entera y parecia que el
+     * modal "se rompia". Con esto el selector queda vacio en vez de tumbar
+     * la vista.
+     */
+    const plantillasDisponibles = computed(
+        () => (Array.isArray(props.plantillas) ? props.plantillas : []).filter((t) => t.is_active),
+    )
 
     const etiquetaTipo = (t: CommentResponseType): string => {
         if (t === 'text') return 'Texto fijo'
