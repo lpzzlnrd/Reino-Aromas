@@ -136,6 +136,15 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
                     'response_type' => $tipo,
                     'response_text' => $this->input('response_text', $config->response_text),
                     'template_id'   => $this->input('template_id', $config->template_id),
+                    // quick_reply_menu_id NO puede faltar acá: respuesta() lo
+                    // lee para el tipo menú y sin él la simulación devolvía
+                    // null siempre, así que activar un menú se rechazaba con
+                    // "No se puede activar sin un mensaje válido" por mucho que
+                    // el menú estuviera completo.
+                    'quick_reply_menu_id' => $this->input(
+                        'quick_reply_menu_id',
+                        $config->quick_reply_menu_id,
+                    ),
                 ]);
 
                 // setRelation y no un save: la relación cargada es la que lee
@@ -144,6 +153,16 @@ class UpdateInstagramCommentSettingRequest extends FormRequest
                     'template',
                     $simulada->template_id !== null
                         ? \App\Models\Template::find($simulada->template_id)
+                        : null,
+                );
+
+                // Lo mismo para el menú, con sus opciones: estaCompleto() las
+                // recorre y sin precargarlas daría false para un menú sano.
+                $simulada->setRelation(
+                    'quickReplyMenu',
+                    $simulada->quick_reply_menu_id !== null
+                        ? \App\Models\InstagramQuickReplyMenu::with('opciones')
+                            ->find($simulada->quick_reply_menu_id)
                         : null,
                 );
 

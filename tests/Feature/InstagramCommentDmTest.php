@@ -348,6 +348,61 @@ class InstagramCommentDmTest extends TestCase
         $this->assertTrue(InstagramCommentSetting::actual()->is_active);
     }
 
+    /**
+     * Activar un menu completo tiene que dejarse guardar.
+     *
+     * Regresion: la simulacion que valida "hay algo que enviar" copiaba
+     * response_text y template_id pero NO quick_reply_menu_id, asi que
+     * respuesta() no encontraba el menu y devolvia null. Resultado: activar
+     * CUALQUIER menu se rechazaba con "No se puede activar sin un mensaje
+     * valido", por completo que estuviera. Se vio en produccion.
+     */
+    public function test_se_puede_activar_un_menu_de_opciones_completo(): void
+    {
+        $usuario = User::factory()->create(['role' => 'administrador', 'is_active' => true]);
+
+        $plantilla = Template::create([
+            'name'      => 'Curso Valencia',
+            'body'      => 'Info del curso de Valencia',
+            'channel'   => 'instagram',
+            'is_active' => true,
+        ]);
+
+        $menu = \App\Models\InstagramQuickReplyMenu::create([
+            'name'      => 'INFO CURSOS',
+            'body'      => 'Toca una opcion',
+            'is_active' => true,
+        ]);
+
+        $menu->opciones()->create([
+            'kind'          => \App\Models\InstagramAutomation::KIND_QUICK_REPLY,
+            'title'         => 'Curso Valencia',
+            'payload'       => 'QR_CURSO_VALENCIA_TEST01',
+            'response_type' => \App\Models\InstagramAutomation::RESPONSE_TEMPLATE,
+            'template_id'   => $plantilla->id,
+            'position'      => 0,
+            'is_active'     => true,
+        ]);
+
+        $this->actingAs($usuario)
+            ->patchJson('/api/instagram/comment-settings', [
+                'is_active'           => true,
+                'response_type'       => 'menu',
+                'quick_reply_menu_id' => $menu->id,
+                'template_id'         => null,
+                'response_text'       => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('settings.response_type', 'menu')
+            ->assertJsonPath('settings.quick_reply_menu_id', $menu->id);
+
+        $config = InstagramCommentSetting::actual();
+
+        $this->assertTrue($config->is_active);
+        // Lo que de verdad importa: que el DM salga con burbujas.
+        $this->assertCount(1, $config->opcionesDeMenu());
+    }
+
     public function test_publica_el_aviso_publico_y_manda_el_dm(): void
     {
         $this->activarConTexto('Mensaje privado de prueba');
