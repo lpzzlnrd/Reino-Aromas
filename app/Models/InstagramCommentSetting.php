@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ComparaPalabrasClave;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class InstagramCommentSetting extends Model
 {
+    use ComparaPalabrasClave;
+
     public const RESPONSE_TEMPLATE = 'template';
     public const RESPONSE_TEXT     = 'text';
 
@@ -139,57 +142,4 @@ class InstagramCommentSetting extends Model
         return $texto !== null && trim($texto) !== '' ? trim($texto) : null;
     }
 
-    /**
-     * ¿El texto del comentario dispara el DM?
-     *
-     * Sin palabras clave configuradas responde a todos. La comparación es
-     * insensible a mayúsculas y a acentos porque la gente comenta "precio",
-     * "PRECIO" y "Precío" indistintamente, y un filtro que falla por un acento
-     * se lee como que la automatización está rota.
-     */
-    public function coincide(?string $comentario): bool
-    {
-        $claves = $this->keywords ?? [];
-
-        if ($claves === []) {
-            return true;
-        }
-
-        if ($comentario === null || trim($comentario) === '') {
-            return false;
-        }
-
-        $normalizado = $this->normalizar($comentario);
-
-        foreach ($claves as $clave) {
-            if (! is_string($clave) || trim($clave) === '') {
-                continue;
-            }
-
-            if (str_contains($normalizado, $this->normalizar($clave))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Minúsculas y sin acentos, para comparar.
-     *
-     * Se usa una tabla explícita en vez de iconv//TRANSLIT: en Windows y según
-     * la locale, iconv devuelve "?" o falla, y esto corre igual en el Laragon
-     * del dev que en el VPS.
-     */
-    private function normalizar(string $texto): string
-    {
-        $texto = mb_strtolower(trim($texto), 'UTF-8');
-
-        return strtr($texto, [
-            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
-            'à' => 'a', 'è' => 'e', 'ì' => 'i', 'ò' => 'o', 'ù' => 'u',
-            'ä' => 'a', 'ë' => 'e', 'ï' => 'i', 'ö' => 'o', 'ü' => 'u',
-            'ñ' => 'n', 'ç' => 'c',
-        ]);
-    }
 }

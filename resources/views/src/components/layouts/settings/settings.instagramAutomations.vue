@@ -6,6 +6,7 @@
     import Close from '../../icons/icon.close.vue'
     import Info from '../../icons/icon.info.vue'
     import CommentDm from './settings.instagramCommentDm.vue'
+    import DmAutoReply from './settings.instagramDmAutoReply.vue'
     import QuickReplyMenus from './settings.instagramQuickReplyMenus.vue'
     import { useModal } from '@/composables/useModal'
     import {
@@ -400,8 +401,12 @@
                 </div>
             </section>
 
-            <!-- Publicar -->
-            <section class="w-full max-w-3xl flex justify-center pt-2">
+            <!-- Publicar.
+
+                 El resultado se repite acá y no solo arriba: este boton esta al
+                 final de la lista, asi que quien lo toca no ve el aviso de la
+                 cabecera y la sincronizacion parece no hacer nada. -->
+            <section class="w-full max-w-3xl flex flex-col items-center gap-2 pt-2">
                 <button
                     @click="sincronizar"
                     :disabled="sincronizando || cargando"
@@ -409,6 +414,12 @@
                 >
                     {{ sincronizando ? 'Enviando a Instagram...' : 'Publicar en Instagram' }}
                 </button>
+
+                <p v-if="error" class="text-xs text-red-600 text-center">{{ error }}</p>
+
+                <p v-else-if="ultimoResultado" class="text-xs text-primary/60 text-center">
+                    {{ ultimoResultado }}
+                </p>
             </section>
 
             <p class="text-[11px] text-primary/40 max-w-xl text-center leading-relaxed">
@@ -427,6 +438,16 @@
                  A diferencia de los botones, esto NO se publica en Meta: el
                  mensaje se manda al recibir el webhook del comentario. -->
             <CommentDm :plantillas="plantillas" />
+
+            <div class="w-full max-w-3xl border-t border-primary/8" />
+
+            <!-- Respuesta a quien escribe un DM.
+
+                 Va justo despues del DM por comentario porque son la misma
+                 idea vista desde los dos lados: uno atiende al que comenta en
+                 publico, el otro al que escribe al buzon. Quien configura el
+                 primero casi siempre quiere el segundo. -->
+            <DmAutoReply :plantillas="plantillas" />
 
             <div class="w-full max-w-3xl border-t border-primary/8" />
 
