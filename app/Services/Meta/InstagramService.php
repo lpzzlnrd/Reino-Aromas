@@ -165,12 +165,31 @@ class InstagramService
 
         $conversation = $this->conversationService->getOrOpenActive($contact);
 
-        $this->storeInboundMessage($conversation, $messageData, $externalId);
+        $mensaje = $this->storeInboundMessage($conversation, $messageData, $externalId);
 
         $this->ticketService->ensureTicketExists($conversation);
 
         $this->conversationService->updateLastMessageAt($conversation);
         $this->conversationService->refreshWindowStatus($conversation);
+
+        // La respuesta automática va al final y con el mensaje ya persistido:
+        // decide mirando cuántos entrantes tiene la conversación, y contarlos
+        // antes daría uno de menos. Tampoco lanza — un fallo suyo no puede
+        // tumbar el webhook, o Meta reintentaría y el mensaje del cliente se
+        // duplicaría en la bandeja.
+        $this->autoReply()->responder($conversation, $mensaje, $senderId);
+    }
+
+    /**
+     * El servicio de respuesta automática al DM.
+     *
+     * Se resuelve perezosamente y no por constructor: depende de este mismo
+     * servicio para enviar los menús, y pedirlo arriba sería una dependencia
+     * circular que el contenedor no puede armar.
+     */
+    private function autoReply(): InstagramDmAutoReplyService
+    {
+        return app(InstagramDmAutoReplyService::class);
     }
 
     /**

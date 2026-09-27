@@ -16,6 +16,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\InstagramAutomationController;
 use App\Http\Controllers\InstagramCommentSettingController;
+use App\Http\Controllers\InstagramDmSettingController;
 use App\Http\Controllers\InstagramQuickReplyMenuController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TicketController;
@@ -217,6 +218,21 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::prefix('instagram/comment-settings')->name('api.instagram.comment-settings.')->group(function (): void {
         Route::get('/', [InstagramCommentSettingController::class, 'show'])->name('show');
         Route::patch('/', [InstagramCommentSettingController::class, 'update'])->name('update');
+    });
+
+    /*
+    |-------------------------------------------------------------------------
+    | Respuesta automatica a quien escribe un DM
+    |
+    | El hermano del bloque de arriba: aquel atiende a quien COMENTA un post,
+    | este a quien ESCRIBE al buzon. Tambien es UNA configuracion y tampoco
+    | hay nada que sincronizar con Meta -- la respuesta sale al recibir el
+    | webhook del mensaje, con el topic `messages` que ya esta suscrito.
+    |-------------------------------------------------------------------------
+    */
+    Route::prefix('instagram/dm-settings')->name('api.instagram.dm-settings.')->group(function (): void {
+        Route::get('/', [InstagramDmSettingController::class, 'show'])->name('show');
+        Route::patch('/', [InstagramDmSettingController::class, 'update'])->name('update');
     });
 
     /*
