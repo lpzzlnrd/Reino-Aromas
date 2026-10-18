@@ -152,6 +152,23 @@ class InstagramService
             return;
         }
 
+        // Tocar una burbuja de un menu (quick reply) NO dispara un postback:
+        // Meta lo entrega como un 'message' normal que lleva
+        // message.quick_reply.payload. Se trata igual que un boton -- el
+        // payload es lo que identifica la opcion -- o la persona toca "Curso
+        // Valencia" y no recibe nada. Va despues de la idempotencia: el mid si
+        // viene aqui, asi que un reintento de Meta no duplica la respuesta.
+        $payloadBurbuja = (string) ($messageData['quick_reply']['payload'] ?? '');
+
+        if ($payloadBurbuja !== '') {
+            $this->handlePostback($senderId, [
+                'payload' => $payloadBurbuja,
+                'title'   => (string) ($messageData['text'] ?? ''),
+            ], $externalId);
+
+            return;
+        }
+
         // El webhook de Instagram NO trae el nombre: 'sender' solo lleva el id
         // (a diferencia de Messenger, donde sender.name viene en el payload).
         // El username se pide aparte a la User Profile API.
@@ -231,7 +248,7 @@ class InstagramService
      *
      * @param array<string, mixed> $postback
      */
-    private function handlePostback(string $senderId, array $postback): void
+    private function handlePostback(string $senderId, array $postback, ?string $externalId = null): void
     {
         $payload = (string) ($postback['payload'] ?? '');
         $titulo  = (string) ($postback['title'] ?? '');
@@ -266,15 +283,16 @@ class InstagramService
 
         $conversation = $this->conversationService->getOrOpenActive($contact);
 
-        // El boton pulsado, como mensaje entrante. external_id null: Meta no
-        // manda un mid para los postbacks, y la columna es unique -- dos
-        // postbacks con external_id vacio chocarian.
+        // El boton pulsado, como mensaje entrante. external_id null para los
+        // postbacks reales: Meta no manda un mid, y la columna es unique -- dos
+        // postbacks con external_id vacio chocarian. Las burbujas de un menu
+        // si traen el mid del mensaje, que es lo que da la idempotencia.
         Message::create([
             'conversation_id' => $conversation->id,
             'sender_user_id'  => null,
             'direction'       => 'inbound',
             'channel'         => 'instagram',
-            'external_id'     => null,
+            'external_id'     => $externalId,
             'type'            => 'text',
             'body'            => $titulo !== '' ? $titulo : $payload,
             'meta_payload'    => $postback,
@@ -477,9 +495,10 @@ class InstagramService
      * Envía un mensaje con un menú de opciones (Quick Replies).
      *
      * Es lo más cercano a un WhatsApp Flow que ofrece Instagram: hasta 13
-     * burbujas sobre el teclado. Al tocar una, Meta dispara el mismo webhook
-     * `messaging_postbacks` que los Ice Breakers, así que el retorno ya está
-     * resuelto en handlePostback() y no hace falta nada nuevo para responder.
+     * burbujas sobre el teclado. Al tocar una, Meta NO manda un postback como
+     * con los Ice Breakers: entrega un `message` normal con
+     * `quick_reply.payload`. handleMessagingEvent() lo detecta y lo deriva a
+     * handlePostback(), que resuelve el payload contra InstagramAutomation.
      *
      * Las burbujas viajan DENTRO del mensaje, no como una publicación aparte:
      * por eso esto es un envío normal con una clave `quick_replies` más, y no
