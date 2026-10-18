@@ -53,9 +53,15 @@ class InstagramAutomationController extends Controller
                 'ice_breakers' => InstagramAutomation::MAX_ICE_BREAKERS,
                 'menu_items'   => InstagramAutomation::MAX_MENU_ITEMS,
             ],
-            'pending_sync' => $botones->contains(
-                fn (InstagramAutomation $b): bool => $b->necesitaSincronizar(),
-            ),
+            // Solo los tipos que viajan a Meta. Las opciones de los menus
+            // (quick_reply) se mandan dentro de cada mensaje y nunca se
+            // sincronizan: contarlas dejaba el aviso encendido para siempre.
+            'pending_sync' => $botones
+                ->whereIn('kind', [
+                    InstagramAutomation::KIND_ICE_BREAKER,
+                    InstagramAutomation::KIND_MENU_ITEM,
+                ])
+                ->contains(fn (InstagramAutomation $b): bool => $b->necesitaSincronizar()),
         ]);
     }
 

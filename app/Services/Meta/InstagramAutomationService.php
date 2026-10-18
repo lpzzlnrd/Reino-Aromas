@@ -39,7 +39,13 @@ class InstagramAutomationService
         // omitiera la llamada, quedarían vivos en Instagram los que el CRM ya
         // no conoce, y al tocarlos llegaría un postback huérfano.
         if ($botones->isEmpty()) {
-            return $this->borrarCampo('ice_breakers');
+            $resultado = $this->borrarCampo('ice_breakers');
+
+            if ($resultado['success']) {
+                $this->marcarSincronizados(InstagramAutomation::KIND_ICE_BREAKER);
+            }
+
+            return $resultado;
         }
 
         $payload = [
@@ -56,7 +62,7 @@ class InstagramAutomationService
         $resultado = $this->enviar($payload);
 
         if ($resultado['success']) {
-            $this->marcarSincronizados($botones->pluck('id')->all());
+            $this->marcarSincronizados(InstagramAutomation::KIND_ICE_BREAKER);
         }
 
         return $resultado;
@@ -77,7 +83,13 @@ class InstagramAutomationService
             ->get();
 
         if ($items->isEmpty()) {
-            return $this->borrarCampo('persistent_menu');
+            $resultado = $this->borrarCampo('persistent_menu');
+
+            if ($resultado['success']) {
+                $this->marcarSincronizados(InstagramAutomation::KIND_MENU_ITEM);
+            }
+
+            return $resultado;
         }
 
         $payload = [
@@ -110,7 +122,7 @@ class InstagramAutomationService
         $resultado = $this->enviar($payload);
 
         if ($resultado['success']) {
-            $this->marcarSincronizados($items->pluck('id')->all());
+            $this->marcarSincronizados(InstagramAutomation::KIND_MENU_ITEM);
         }
 
         return $resultado;
@@ -231,19 +243,21 @@ class InstagramAutomationService
     }
 
     /**
-     * @param  list<int> $ids
+     * Marca como sincronizados TODOS los botones de un tipo, activos o no.
+     *
+     * La sincronización es de reemplazo total: tras ella Meta refleja el CRM
+     * entero. Marcar solo los activos dejaba los desactivados (y los que pasan
+     * del tope) con synced_at viejo para siempre, y el aviso "Hay cambios sin
+     * publicar" no se iba por mucho que se publicara.
      */
-    private function marcarSincronizados(array $ids): void
+    private function marcarSincronizados(string $kind): void
     {
-        if ($ids === []) {
-            return;
-        }
-
-        // update() directo y no save() por modelo: no hay que disparar eventos
-        // ni tocar updated_at, que es justo lo que se compara para saber si
-        // hay cambios pendientes.
+        // toBase() y no el update() de Eloquent: ese añade updated_at = now(),
+        // que es justo lo que se compara para saber si hay cambios pendientes,
+        // y a veces cae un segundo después de synced_at.
         InstagramAutomation::query()
-            ->whereIn('id', $ids)
+            ->ofKind($kind)
+            ->toBase()
             ->update(['synced_at' => now()]);
     }
 
