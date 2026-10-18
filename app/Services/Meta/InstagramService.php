@@ -11,6 +11,7 @@ use App\Models\Ticket;
 use App\Services\ContactService;
 use App\Services\ConversationService;
 use App\Services\OutboundMessageService;
+use App\Services\TemplateService;
 use App\Services\TicketService;
 use App\Services\ActivityLogService;
 use Illuminate\Support\Facades\Http;
@@ -322,6 +323,14 @@ class InstagramService
 
             return;
         }
+
+        // La plantilla guarda marcadores ({{nombre}}, {{ciudad}}...): sin
+        // renderizarlos el cliente leeria las llaves tal cual.
+        $templates = app(TemplateService::class);
+        $respuesta = $templates->render(
+            $respuesta,
+            $templates->valoresPara($conversation->contact, $conversation->ticket),
+        );
 
         // Se encola por el servicio comun para que el mensaje quede persistido
         // como 'pending' y visible en el chat aunque la cola este caida.

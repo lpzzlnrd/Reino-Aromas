@@ -9,6 +9,7 @@ use App\Models\InstagramDmReply;
 use App\Models\InstagramDmSetting;
 use App\Models\Message;
 use App\Services\OutboundMessageService;
+use App\Services\TemplateService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -99,6 +100,14 @@ class InstagramDmAutoReplyService
 
             return;
         }
+
+        // Los marcadores de la plantilla ({{nombre}}...) se sustituyen aca: sin
+        // eso el cliente leeria las llaves tal cual.
+        $templates = app(TemplateService::class);
+        $cuerpo = $templates->render(
+            $cuerpo,
+            $templates->valoresPara($conversation->contact, $conversation->ticket),
+        );
 
         $opciones = $config->opcionesDeMenu();
 

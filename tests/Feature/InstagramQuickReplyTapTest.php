@@ -88,6 +88,23 @@ class InstagramQuickReplyTapTest extends TestCase
         $this->assertSame(1, $opcion->fresh()->hits);
     }
 
+    public function test_la_respuesta_sustituye_los_marcadores_de_la_plantilla(): void
+    {
+        Queue::fake();
+        Http::fake(['graph.instagram.com/*' => Http::response(['username' => 'clienta', 'name' => 'Ana Paula'], 200)]);
+
+        $opcion = $this->opcion();
+        $opcion->update(['response_text' => '¡Hola {{nombre}}! Info del curso']);
+
+        app(InstagramService::class)->processWebhookPayload($this->toque('qr_valencia'));
+
+        $saliente = Message::query()->where('direction', Message::DIRECTION_OUTBOUND)->first();
+
+        $this->assertNotNull($saliente);
+        $this->assertStringNotContainsString('{{', $saliente->body);
+        $this->assertStringStartsWith('¡Hola ', $saliente->body);
+    }
+
     public function test_un_reintento_de_meta_no_duplica_la_respuesta(): void
     {
         Queue::fake();
