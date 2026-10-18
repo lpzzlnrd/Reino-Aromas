@@ -36,7 +36,9 @@ class InstagramCommentSettingController extends Controller
      */
     public function show(): JsonResponse
     {
-        $config = InstagramCommentSetting::actual()->load('template:id,name,city,is_active');
+        // `body` va en el select: respuesta() lo lee, y sin él `broken` salía
+        // true con la plantilla activa.
+        $config = InstagramCommentSetting::actual()->load('template:id,name,city,is_active,body');
 
         return response()->json([
             'settings' => $this->serializar($config),
@@ -69,7 +71,7 @@ class InstagramCommentSettingController extends Controller
 
         return response()->json([
             'settings' => $this->serializar(
-                $config->fresh()->load('template:id,name,city,is_active'),
+                $config->fresh()->load('template:id,name,city,is_active,body'),
             ),
         ]);
     }
