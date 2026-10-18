@@ -531,6 +531,29 @@ class InstagramDmAutoReplyTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_una_plantilla_activa_no_se_reporta_como_rota(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $plantilla = Template::create([
+            'name'      => 'INCLUYE CURSO VALENCIA',
+            'body'      => 'INCLUYE: materiales, coffee break...',
+            'is_active' => true,
+        ]);
+
+        InstagramDmSetting::actual()->update([
+            'is_active'     => true,
+            'response_type' => InstagramDmSetting::RESPONSE_TEMPLATE,
+            'template_id'   => $plantilla->id,
+        ]);
+
+        // El select de la plantilla omitia `body`: respuesta() daba null y la
+        // UI avisaba "no puede responder" con la plantilla perfectamente activa.
+        $this->getJson('/api/instagram/dm-settings')
+            ->assertOk()
+            ->assertJsonPath('settings.broken', false);
+    }
+
     public function test_show_devuelve_configuracion_y_metricas(): void
     {
         $this->actingAs(User::factory()->create());

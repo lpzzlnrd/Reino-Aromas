@@ -35,8 +35,11 @@ class InstagramDmSettingController extends Controller
      */
     public function show(): JsonResponse
     {
+        // `body` va en el select: respuesta() lo lee para saber si hay algo que
+        // enviar. Sin esa columna daba null aunque la plantilla estuviera
+        // activa, y `broken` mostraba "no puede responder" con todo bien.
         $config = InstagramDmSetting::actual()->load([
-            'template:id,name,city,is_active',
+            'template:id,name,city,is_active,body',
             'quickReplyMenu',
         ]);
 
@@ -71,7 +74,7 @@ class InstagramDmSettingController extends Controller
 
         return response()->json([
             'settings' => $this->serializar(
-                $config->fresh()->load(['template:id,name,city,is_active', 'quickReplyMenu']),
+                $config->fresh()->load(['template:id,name,city,is_active,body', 'quickReplyMenu']),
             ),
         ]);
     }
